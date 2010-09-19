@@ -1,14 +1,14 @@
 var sys = require('sys');
 var pack = require('./jspack').jspack;
 
+function concat(buf1, buf2) {
+	var buf = new Buffer(buf1.length + buf2.length);
+	buf1.copy(buf, 0, 0);
+	buf2.copy(buf, buf1.length, 0);
+	return buf;
+}
+
 Packet = function (data) {
-	if (data == null || typeof data == 'number') {
-		var d = data;
-		data = new Buffer(1);
-		if (typeof d == 'number') {
-			data[0] = d;
-		}
-	}
 	this.type = data[0];
 	this.data = data;
 	this.cursor = 1;
@@ -19,128 +19,47 @@ Packet.prototype.needs = function (nBytes) {
 		throw Error("oob");
 }
 
-Packet.prototype.readString = function () {
-	var len = (this.data[this.cursor] << 8) + this.data[this.cursor+1];
-	this.cursor += 2;
-	if (this.cursor >= this.data.length) throw Error("oob");
-	var str = this.data.slice(this.cursor, this.cursor + len).toString('utf8');
-	this.cursor += len;
+var unpackString = function (pkt) {
+	pkt.needs(2);
+	var len = (pkt.data[pkt.cursor] << 8) + pkt.data[pkt.cursor+1];
+	pkt.cursor += 2;
+	pkt.needs(len);
+	var str = pkt.data.slice(pkt.cursor, pkt.cursor + len).toString('utf8');
+	pkt.cursor += len;
 	return str;
 }
-
-Packet.prototype.readInt = function () {
-	this.needs(4);
-	var data = this.data.slice(this.cursor, this.cursor + 4);
-	var x = (data[0] << 24) +
-	        (data[1] << 16) +
-	        (data[2] << 8) +
-	        data[3];
-	this.cursor += 4;
-	return x;
-}
-
-Packet.prototype.readBool = function () {
-	this.needs(1);
-	var x = this.data.slice(this.cursor, this.cursor+1)[0] != 0x00;
-	this.cursor += 1;
-	return x;
-}
-
-Packet.prototype.readFloat = function () {
-	this.needs(4);
-	var x = pack.Unpack('f', this.data, this.cursor);
-	this.cursor += 4;
-	return x; // TODO
-}
-
-Packet.prototype.readDouble = function () {
-	this.needs(8);
-	var x = pack.Unpack('d', this.data, this.cursor);
-	this.cursor += 8;
-	return x; // TODO
-}
-
-Packet.prototype.putBytes = function (bytes) {
-	if (this.cursor + bytes.length > this.data.length) {
-		var newData = new Buffer(this.cursor + bytes.length);
-		this.data.copy(newData, 0, 0);
-		this.data = newData;
-	}
-	new Buffer(bytes).copy(this.data, this.cursor, 0);
-	this.cursor += bytes.length;
-}
-
-var putByte = function (byte) {
-	return new Buffer([byte]);
-}
-
-var putShort = function (shrt) {
-	return new Buffer([(shrt & 0xff00) >> 8, shrt & 0xff]);
-}
-
-Packet.prototype.putShort = function (shrt) {
-	this.putBytes([(shrt & 0xff00) >> 8, shrt & 0xff]);
-}
-
-var putInt = function (int) {
-	return new Buffer([(int & 0xff000000) >> 24,
-	                   (int &   0xff0000) >> 16,
-	                   (int &     0xff00) >> 8,
-	                   (int &       0xff)]);
-}
-
-Packet.prototype.putInt = function (int) {
-	this.putBytes([(int & 0xff000000) >> 24,
-	               (int &   0xff0000) >> 16,
-	               (int &     0xff00) >> 8,
-	               (int &       0xff)]);
-}
-
-var putString = function (str) {
+var packString = function (str) {
 	if (!(str instanceof Buffer))
 		str = new Buffer(str);
-	return concat(putShort(str.length), str);
+	return concat(makers['short'](str.length), str);
 }
-var putIntString = function (str) {
+var packIntString = function (str) {
 	if (!(str instanceof Buffer))
 		str = new Buffer(str);
-	return concat(putInt(str.length), str);
+	return concat(makers['int'](str.length), str);
 }
 
-Packet.prototype.putString = function (str) {
-	this.putShort(str.length);
-	this.putBytes(str);
+var unpackBool = function (pkt) {
+	pkt.needs(1);
+	var ret = pkt.data[pkt.cursor] != 0;
+	pkt.cursor += 1;
+	return ret;
 }
 
-var putFloat = function (flt) {
-	return new Buffer(pack.Pack('f', [flt]));
-}
-
-var putDouble = function (dbl) {
-	return new Buffer(pack.Pack('d', [dbl]));
-}
-
-var putBool = function (bool) {
+var packBool = function (bool) {
 	return new Buffer([bool ? 1 : 0]);
 }
 
-var putItems = function (items) {
+
+var packItems = function (items) {
 	var buf = new Buffer(0);
 	for (var i = 0; i < items.length; i++) {
-		sys.p(items[i])
-		buf = concat(buf, putShort(items[i].id));
+		buf = concat(buf, makers['short'](items[i].id));
 		if (items[i].id != -1) {
-			buf = concat(buf, putByte(items[i].count));
-			buf = concat(buf, putShort(items[i].health));
+			buf = concat(buf, makers['byte'](items[i].count));
+			buf = concat(buf, makers['short'](items[i].health));
 		}
 	}
-	return buf;
-}
-
-function concat(buf1, buf2) {
-	var buf = new Buffer(buf1.length + buf2.length);
-	buf1.copy(buf, 0, 0);
-	buf2.copy(buf, buf1.length, 0);
 	return buf;
 }
 
@@ -159,9 +78,11 @@ var clientPacketStructure = {
 	0x01: [int('protoVer'), str('username'), str('password')],
 	0x02: [str('username')],
 	0x0a: [bool('isFlying')],
-	0x0b: [double('x'), double('y'), double('stance'), double('z'), bool('flying')],
+	0x0b: [double('x'), double('y'), double('stance'), double('z'),
+	       bool('flying')],
 	0x0c: [float('rotation'), float('pitch'), bool('flying')],
-	0x0d: [double('x'), double('y'), double('stance'), double('z'), float('rotation'), float('pitch'), bool('flying')],
+	0x0d: [double('x'), double('y'), double('stance'), double('z'),
+	       float('rotation'), float('pitch'), bool('flying')],
 }
 
 var serverPacketStructure = {
@@ -170,31 +91,49 @@ var serverPacketStructure = {
 	0x03: [str('message')],
 	0x05: [int('invType'), short('count'), items('items')],
 	0x06: [int('x'), int('y'), int('z')],
-	0x0d: [double('x'), double('y'), double('stance'), double('z'), float('rotation'), float('pitch'), bool('flying')],
+	0x0d: [double('x'), double('y'), double('stance'), double('z'),
+	       float('rotation'), float('pitch'), bool('flying')],
 	0x32: [int('x'), int('z'), bool('mode')], // prechunk
-	0x33: [int('x'), short('y'), int('z'), byte('sizeX'), byte('sizeY'), byte('sizeZ'), intstr('chunk')], // map chunk, gzipped
+	0x33: [int('x'), short('y'), int('z'), byte('sizeX'), byte('sizeY'),
+	       byte('sizeZ'), intstr('chunk')], // map chunk, gzipped
 	0xff: [str('message')], // disconnect
 }
 
+function unpack_fmt(fmt) {
+	return function (pkt) {
+		var len = pack.CalcLength(fmt);
+		pkt.needs(len);
+		var value = pack.Unpack(fmt, pkt.data, pkt.cursor);
+		pkt.cursor += len;
+		return value;
+	};
+}
+
+function pack_fmt(fmt) {
+	return function () {
+		return new Buffer(pack.Pack(fmt, arguments));
+	}
+}
+
 var parsers = {
-	int: Packet.prototype.readInt,
-	short: Packet.prototype.readShort,
-	str: Packet.prototype.readString,
-	bool: Packet.prototype.readBool,
-	float: Packet.prototype.readFloat,
-	double: Packet.prototype.readDouble,
+	int: unpack_fmt('i'),
+	short: unpack_fmt('h'),
+	str: unpackString,
+	bool: unpackBool,
+	float: unpack_fmt('f'),
+	double: unpack_fmt('d'),
 }
 
 var makers = {
-	int: putInt,
-	byte: putByte,
-	short: putShort,
-	str: putString,
-	bool: putBool,
-	float: putFloat,
-	double: putDouble,
-	items: putItems,
-	intstr: putIntString,
+	int: pack_fmt('i'),
+	byte: pack_fmt('b'),
+	short: pack_fmt('h'),
+	str: packString,
+	bool: packBool,
+	float: pack_fmt('f'),
+	double: pack_fmt('d'),
+	items: packItems,
+	intstr: packIntString,
 }
 
 exports.parsePacket = function (buf) {
@@ -206,7 +145,7 @@ exports.parsePacket = function (buf) {
 	for (var field in struct) {
 		var type = struct[field][0];
 		var name = struct[field][1];
-		pktData[name] = parsers[type].apply(pkt);
+		pktData[name] = parsers[type](pkt);
 	}
 	pktData.length = pkt.cursor;
 	return pktData;

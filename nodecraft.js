@@ -5,6 +5,14 @@ var sys = require('sys')
   , zip = require('./compress')
   ;
 
+// TODO: put this useful function somewhere else
+function concat(buf1, buf2) {
+	var buf = new Buffer(buf1.length + buf2.length);
+	buf1.copy(buf, 0, 0);
+	buf2.copy(buf, buf1.length, 0);
+	return buf;
+}
+
 function keepalive(stream, pkt) {
 	// doo-de-doo
 }
@@ -120,13 +128,6 @@ var packets = {
 	0x02: handshake,
 	0x0a: flying,
 };
-
-function concat(buf1, buf2) {
-	var buf = new Buffer(buf1.length + buf2.length);
-	buf1.copy(buf, 0, 0);
-	buf2.copy(buf, buf1.length, 0);
-	return buf;
-}
 
 var server = net.createServer(function(stream) {
 	stream.on('connect', function () {
