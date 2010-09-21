@@ -2,7 +2,7 @@ var sys = require('sys')
   , net = require('net')
   , ps = require('./ps')
   , colors = require('./colors')
-  , zip = require('./compress')
+  , zip = require('compress')
   ;
 
 // TODO: put this useful function somewhere else
@@ -86,7 +86,7 @@ function login(stream, pkt) {
 		for (var z = -10*16; z < 10*16; z += 16) {
 			(function(){
 				var chunk = new Buffer(0);
-				var gzip = new zip.GzipStream();
+				var gzip = new zip.GzipStream(zip.Z_DEFAULT_COMPRESSION, zip.MAX_WBITS);
 				gzip.on('data', function (data) {
 					chunk = concat(chunk, data);
 				}).on('error', function (err) {
