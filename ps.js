@@ -41,7 +41,7 @@ var unpackIntString = function (pkt) {
 	pkt.needs(len);
 	var str = pkt.data.slice(pkt.cursor, pkt.cursor + len);
 	pkt.cursor += len;
-	return concat(makers['int'](str.length), str);
+	return str;
 }
 
 var unpackBool = function (pkt) {
