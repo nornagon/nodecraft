@@ -31,7 +31,7 @@ var server = net.createServer(function(stream) {
 			var allData = concat(partialServerData, data);
 			do {
 				try {
-					sys.debug("parsing " + sys.inspect(allData));
+					//sys.debug("parsing " + sys.inspect(allData));
 					var pkt = ps.parsePacketWith(allData, ps.serverPacketStructure);
 					sys.debug('Server sent packet: ' + sys.inspect(pkt));
 					partialServerData = new Buffer(0);
