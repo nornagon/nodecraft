@@ -3,6 +3,7 @@ var sys = require('sys')
   , ps = require('./ps')
   , colors = require('./colors')
   , zip = require('compress')
+  , chunk = require('./chunk')
   ;
 
 // TODO: put this useful function somewhere else
@@ -84,11 +85,11 @@ function login(stream, pkt) {
 
 	for (var x = -10*16; x < 10*16; x += 16) {
 		for (var z = -10*16; z < 10*16; z += 16) {
-			(function(){
-				var chunk = new Buffer(0);
+			(function(x,z){
+				var zippedChunk = new Buffer(0);
 				var gzip = new zip.GzipStream(zip.Z_DEFAULT_COMPRESSION, zip.MAX_WBITS);
 				gzip.on('data', function (data) {
-					chunk = concat(chunk, data);
+					zippedChunk = concat(zippedChunk, data);
 				}).on('error', function (err) {
 					throw err;
 				}).on('end', function () {
@@ -96,24 +97,41 @@ function login(stream, pkt) {
 						type: 0x33,
 						x: x, z: z, y: 0,
 						sizeX: 15, sizeY: 127, sizeZ: 15, // +1 to all
-						chunk: chunk
+						chunk: zippedChunk
 					}));
 				});
 
-				var chunk_data = new Buffer(16 * 128 * 16 * 2.5);
-				for (var i = 0; i < 16 * 128 * 16 * 2.5; i++) {
-					chunk_data[i] = 0;
+				var chunk_data = new chunk.Chunk();
+				for (var x2 = 0; x2 < 16; x2++) {
+					for (var y2 = 0; y2 < 128; y2++) {
+						for (var z2 = 0; z2 < 16; z2++) {
+							if (y2 == 0) {
+								chunk_data.setType(x2, y2, z2, 0x07);
+							} else if (y2 < 64) {
+							chunk_data.setType(x2, y2, z2, 0x03);
+							} else if (y2 == 64) {
+								chunk_data.setType(x2, y2, z2, 0x02);
+							} else {
+								chunk_data.setType(x2, y2, z2, 0x00);
+							}
+
+							if (y2 >= 60)
+								chunk_data.setLighting(x2, y2, z2, 0xf);
+							else
+								chunk_data.setLighting(x2, y2, z2, 0x0);
+						}
+					}
 				}
 
-				gzip.write(chunk_data);
+				gzip.write(chunk_data.data);
 				gzip.close();
-			})();
+			})(x,z);
 		}
 	}
 
 	stream.write(ps.makePacket({
 		type: 0x0d,
-		x: 0, y: 0, z: 0, stance: 71,
+		x: 0, y: 80, z: 0, stance: 71,
 		rotation: 0, pitch: 0,
 		flying: 0,
 	}));
@@ -134,7 +152,7 @@ var server = net.createServer(function(stream) {
 		// ...
 		var f = stream.write;
 		stream.write = function () {
-			sys.debug(('S: ' + sys.inspect(arguments[0])).green);
+			sys.debug(('S: ' + sys.inspect(ps.parsePacketWith(arguments[0], ps.serverPacketStructure))).green);
 			f.apply(stream, arguments);
 		}
 	});
