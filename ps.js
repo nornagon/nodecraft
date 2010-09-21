@@ -137,6 +137,39 @@ var serverPacketStructure = {
 	0xff: [str('message')], // disconnect
 }
 
+var packetNames = {
+	0x00: 'KEEPALIVE',
+	0x01: 'LOGIN',
+	0x02: 'HANDSHAKE',
+	0x03: 'CHAT',
+	0x04: 'TIME',
+	0x05: 'INVENTORY',
+	0x06: 'SPAWN_POS',
+	0x0a: 'FLYING',
+	0x0b: 'PLAYER_POSITION',
+	0x0c: 'PLAYER_LOOK',
+	0x0d: 'PLAYER_MOVE_LOOK',
+	0x10: 'WIELD',
+	0x12: 'ARM_ANIM',
+	0x14: 'PLAYER_SPAWN',
+	0x15: 'PICKUP_SPAWN',
+	0x16: 'COLLECT_ITEM',
+	0x17: 'ADD_VEHICLE',
+	0x18: 'MOB_SPAWN',
+	0x1d: 'DESTROY_ENTITY',
+	0x1e: 'CREATE_ENTITY',
+	0x1f: 'REL_ENTITY_MOVE',
+	0x20: 'ENTITY_LOOK',
+	0x21: 'REL_ENTITY_MOVE_LOOK',
+	0x22: 'ENTITY_TELEPORT',
+	0x32: 'PRE_CHUNK',
+	0x33: 'MAP_CHUNK',
+	0x34: 'MULTI_BLOCK_CHANGE',
+	0x35: 'BLOCK_CHANGE',
+	0x3b: 'NBT_ENTITY',
+	0xff: 'DISCONNECT',
+}
+
 function unpack_fmt(fmt) {
 	return function (pkt) {
 		var len = pack.CalcLength(fmt);
@@ -217,3 +250,4 @@ exports.makePacketWith = function (pktData, structures) {
 
 exports.clientPacketStructure = clientPacketStructure;
 exports.serverPacketStructure = serverPacketStructure;
+exports.packetNames = packetNames;

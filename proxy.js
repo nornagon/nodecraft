@@ -33,7 +33,8 @@ var server = net.createServer(function(stream) {
 				try {
 					//sys.debug("parsing " + sys.inspect(allData));
 					var pkt = ps.parsePacketWith(allData, ps.serverPacketStructure);
-					sys.debug('Server sent packet: ' + sys.inspect(pkt));
+					sys.debug('Server'.green+' sent 0x' + pkt.type.toString(16) + ' ' +
+										ps.packetNames[pkt.type].bold+': ' + sys.inspect(pkt));
 					partialServerData = new Buffer(0);
 					allData = allData.slice(pkt.length, allData.length);
 				} catch (err) {
@@ -61,7 +62,8 @@ var server = net.createServer(function(stream) {
 		do {
 			try {
 				var pkt = ps.parsePacket(allData);
-				sys.debug('Client sent packet: ' + sys.inspect(pkt));
+				sys.debug('Client'.cyan+' sent 0x'+pkt.type.toString(16)+' '+
+									ps.packetNames[pkt.type].bold+': ' + sys.inspect(pkt));
 				partialData = new Buffer(0); // successfully used up the partial data
 				allData = allData.slice(pkt.length, allData.length);
 			} catch (err) {
