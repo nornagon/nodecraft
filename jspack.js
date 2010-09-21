@@ -133,7 +133,7 @@ function JSPack()
 
 	// Class data
 	m._sPattern	= '(\\d+)?([AxcbBhHsfdiIlL])';
-	m._lenLut	= {'A':1, 'x':1, 'c':1, 'b':1, 'B':1, 'h':2, 'H':2, 's':1, 'f':4, 'd':8, 'i':4, 'I':4, 'l':4, 'L':4};
+	m._lenLut	= {'A':1, 'x':1, 'c':1, 'b':1, 'B':1, 'h':2, 'H':2, 's':1, 'f':4, 'd':8, 'i':4, 'I':4, 'l':8, 'L':8};
 	m._elLut	= {	'A': {en:m._EnArray, de:m._DeArray},
 				's': {en:m._EnString, de:m._DeString},
 				'c': {en:m._EnChar, de:m._DeChar},
@@ -143,8 +143,8 @@ function JSPack()
 				'H': {en:m._EnInt, de:m._DeInt, len:2, bSigned:false, min:0, max:Math.pow(2, 16)-1},
 				'i': {en:m._EnInt, de:m._DeInt, len:4, bSigned:true, min:-Math.pow(2, 31), max:Math.pow(2, 31)-1},
 				'I': {en:m._EnInt, de:m._DeInt, len:4, bSigned:false, min:0, max:Math.pow(2, 32)-1},
-				'l': {en:m._EnInt, de:m._DeInt, len:4, bSigned:true, min:-Math.pow(2, 31), max:Math.pow(2, 31)-1},
-				'L': {en:m._EnInt, de:m._DeInt, len:4, bSigned:false, min:0, max:Math.pow(2, 32)-1},
+				'l': {en:m._EnInt, de:m._DeInt, len:8, bSigned:true, min:-Math.pow(2, 63), max:Math.pow(2, 63)-1},
+				'L': {en:m._EnInt, de:m._DeInt, len:8, bSigned:false, min:0, max:Math.pow(2, 64)-1},
 				'f': {en:m._En754, de:m._De754, len:4, mLen:23, rt:Math.pow(2, -24)-Math.pow(2, -77)},
 				'd': {en:m._En754, de:m._De754, len:8, mLen:52, rt:0}};
 

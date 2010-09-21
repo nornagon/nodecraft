@@ -170,5 +170,6 @@ var server = net.createServer(function(stream) {
 	});
 });
 
+sys.puts('Nodecraft '+'v0.1'.bold.red+' starting up.')
 server.listen(25565, 'localhost');
-sys.print('listening on localhost:25565...\n');
+sys.puts('Listening on ' + 'localhost:25565'.bold.grey + '...');

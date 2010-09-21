@@ -19,23 +19,28 @@ Packet.prototype.needs = function (nBytes) {
 		throw Error("oob");
 }
 
-var unpackString = function (pkt) {
-	pkt.needs(2);
-	var len = (pkt.data[pkt.cursor] << 8) + pkt.data[pkt.cursor+1];
-	pkt.cursor += 2;
-	pkt.needs(len);
-	var str = pkt.data.slice(pkt.cursor, pkt.cursor + len).toString('utf8');
-	pkt.cursor += len;
-	return str;
-}
 var packString = function (str) {
 	if (!(str instanceof Buffer))
 		str = new Buffer(str);
 	return concat(makers['short'](str.length), str);
 }
+var unpackString = function (pkt) {
+	var len = parsers.short(pkt);
+	pkt.needs(len);
+	var str = pkt.data.slice(pkt.cursor, pkt.cursor + len).toString('utf8');
+	pkt.cursor += len;
+	return str;
+}
 var packIntString = function (str) {
 	if (!(str instanceof Buffer))
 		str = new Buffer(str);
+	return concat(makers['int'](str.length), str);
+}
+var unpackIntString = function (pkt) {
+	var len = parsers.int(pkt);
+	pkt.needs(len);
+	var str = pkt.data.slice(pkt.cursor, pkt.cursor + len);
+	pkt.cursor += len;
 	return concat(makers['int'](str.length), str);
 }
 
@@ -52,7 +57,7 @@ var packBool = function (bool) {
 
 
 var packItems = function (items) {
-	var buf = new Buffer(0);
+	var buf = makers['short'](items.length);
 	for (var i = 0; i < items.length; i++) {
 		buf = concat(buf, makers['short'](items[i].id));
 		if (items[i].id != -1) {
@@ -62,14 +67,29 @@ var packItems = function (items) {
 	}
 	return buf;
 }
+var unpackItems = function (pkt) {
+	var items = [];
+	var numItems = parsers.short(pkt);
+	for (var i = 0; i < numItems; i++) {
+		var id = parsers.short(pkt),
+		    count, health;
+		if (id != -1) {
+			count = parsers.byte(pkt);
+			health = parsers.short(pkt);
+		}
+		items.push({id: id, count: count, health: health});
+	}
+	return items;
+}
 
-function int(name) { return ['int', name]; }
 function byte(name) { return ['byte', name]; }
+function short(name) { return ['short', name]; }
+function int(name) { return ['int', name]; }
+function long(name) { return ['long', name]; }
 function str(name) { return ['str', name]; }
 function bool(name) { return ['bool', name]; }
 function double(name) { return ['double', name]; }
 function float(name) { return ['float', name]; }
-function short(name) { return ['short', name]; }
 function items(name) { return ['items', name]; }
 function intstr(name) { return ['intstr', name]; }
 
@@ -86,16 +106,32 @@ var clientPacketStructure = {
 }
 
 var serverPacketStructure = {
+	0x00: [],
 	0x01: [int('playerID'), str('serverName'), str('motd')],
 	0x02: [str('serverID')],
 	0x03: [str('message')],
-	0x05: [int('invType'), short('count'), items('items')],
+	0x04: [long('time')],
+	0x05: [int('invType'), items('items')],
 	0x06: [int('x'), int('y'), int('z')],
 	0x0d: [double('x'), double('y'), double('stance'), double('z'),
 	       float('rotation'), float('pitch'), bool('flying')],
+	//0x0e: [byte('status'), int('x'), byte('y'), int('z'), byte('face')],
+	//0x0f: [short('id'), int('x'), byte('y'), int('z'), byte('direction')],
+	0x12: [int('uid'), byte('unk')],
+	0x14: [int('uid'), str('playerName'), int('x'), int('y'), int('z'), byte('rotation'), byte('pitch'), short('curItem')],
+	0x15: [int('uid'), short('item'), byte('unk'), int('x'), int('y'), int('z'), byte('rotation'), byte('pitch'), byte('unk2')],
+	0x17: [int('uid'), byte('objType'), int('x'), int('y'), int('z')],
+	0x18: [int('uid'), byte('mobType'), int('x'), int('y'), int('z'), byte('rotation'), byte('pitch')],
+	0x1d: [int('uid')],
+	0x1e: [int('uid')],
+	0x1f: [int('uid'), byte('x'), byte('y'), byte('z')],
+	0x20: [int('uid'), byte('rotation'), byte('pitch')],
+	0x21: [int('uid'), byte('x'), byte('y'), byte('z'), byte('rotation'), byte('pitch')],
 	0x32: [int('x'), int('z'), bool('mode')], // prechunk
 	0x33: [int('x'), short('y'), int('z'), byte('sizeX'), byte('sizeY'),
 	       byte('sizeZ'), intstr('chunk')], // map chunk, gzipped
+	0x35: [int('x'), byte('y'), int('z'), byte('blockType'), byte('blockMetadata')],
+	0x3b: [int('x'), short('y'), int('z'), str('nbt')],
 	0xff: [str('message')], // disconnect
 }
 
@@ -105,7 +141,7 @@ function unpack_fmt(fmt) {
 		pkt.needs(len);
 		var value = pack.Unpack(fmt, pkt.data, pkt.cursor);
 		pkt.cursor += len;
-		return value;
+		return value[0];
 	};
 }
 
@@ -116,18 +152,23 @@ function pack_fmt(fmt) {
 }
 
 var parsers = {
-	int: unpack_fmt('i'),
+	byte: unpack_fmt('b'),
 	short: unpack_fmt('h'),
+	int: unpack_fmt('i'),
+	long: unpack_fmt('l'),
 	str: unpackString,
 	bool: unpackBool,
 	float: unpack_fmt('f'),
 	double: unpack_fmt('d'),
+	items: unpackItems,
+	intstr: unpackIntString,
 }
 
 var makers = {
-	int: pack_fmt('i'),
 	byte: pack_fmt('b'),
 	short: pack_fmt('h'),
+	int: pack_fmt('i'),
+	long: pack_fmt('l'),
 	str: packString,
 	bool: packBool,
 	float: pack_fmt('f'),
@@ -137,10 +178,14 @@ var makers = {
 }
 
 exports.parsePacket = function (buf) {
+	return exports.parsePacketWith(buf, clientPacketStructure);
+}
+
+exports.parsePacketWith = function (buf, structures) {
 	var pkt = new Packet(buf);
-	var struct = clientPacketStructure[pkt.type];
+	var struct = structures[pkt.type];
 	if (!struct)
-		throw Error("unknown client packet type 0x" + pkt.type.toString(16));
+		throw Error("unknown packet type while parsing: 0x" +pkt.type.toString(16));
 	var pktData = {type: pkt.type};
 	for (var field in struct) {
 		var type = struct[field][0];
@@ -152,15 +197,21 @@ exports.parsePacket = function (buf) {
 }
 
 exports.makePacket = function (pktData) {
-	var struct = serverPacketStructure[pktData.type];
+	return exports.makePacketWith(pktData, serverPacketStructure);
+}
+
+exports.makePacketWith = function (pktData, structures) {
+	var struct = structures[pktData.type];
 	if (!struct)
-		throw Error("unknown server packet type 0x" + pkt.type.toString(16));
+		throw Error("unknown packet type while making: 0x" + pkt.type.toString(16));
 	var buf = new Buffer([pktData.type]);
 	for (var field in struct) {
 		var type = struct[field][0];
 		var name = struct[field][1];
-		sys.debug(type + "(" + name + ") = " + sys.inspect(pktData[name]) + " -> " + sys.inspect(makers[type](pktData[name])));
 		buf = concat(buf, makers[type](pktData[name]));
 	}
 	return buf;
 }
+
+exports.clientPacketStructure = clientPacketStructure;
+exports.serverPacketStructure = serverPacketStructure;
