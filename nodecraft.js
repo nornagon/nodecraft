@@ -167,6 +167,18 @@ function login(session, pkt) {
 	session.pump();
 }
 
+function blockdig(session, pkt) {
+	if (pkt.status == 0x3)
+	{
+		session.world.terrain.setCellType(pkt.x,pkt.y,pkt.z,0x0);
+		session.stream.write(ps.makePacket({
+				type: 0x35,
+				x: pkt.x, y: pkt.y, z: pkt.z, blockType: 0,
+				blockMetadata: 0
+			}));
+	}
+}
+
 function flying(session, pkt) {
 }
 
@@ -175,10 +187,30 @@ var packets = {
 	0x01: login,
 	0x02: handshake,
 	0x0a: flying,
+	0x0e: blockdig,
 };
 
-world = new Object();
+
+
+var world = new Object();
 world.terrain = new terrain.WorldTerrain();
+world.time = 0;
+world.sessions = [];
+
+function sendTicks()
+{
+	for (var i=0; i<world.sessions.length; i++)
+	{
+		var session = world.sessions[i];
+		session.stream.write(ps.makePacket({
+			type: 0x04,
+			time: world.time
+		}));
+	}
+	world.time += 20;
+}
+
+setTimeout(1000, sendTicks());
 
 var server = net.createServer(function(stream) {
 	stream.on('connect', function () {
@@ -193,6 +225,7 @@ var server = net.createServer(function(stream) {
 	var clientsession = new session.Session();
 	clientsession.stream = stream;
 	clientsession.world = world;
+	world.sessions.push(clientsession);
 
 	var partialData = new Buffer(0);
 	stream.on('data', function (data) {

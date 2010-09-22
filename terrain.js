@@ -83,7 +83,7 @@ WorldTerrain.prototype.getChunk = function(x, z, done_callback) {
 		done_callback(this.chunks[[x,z]]);
 }
 
-WorldTerrain.prototype.getCell = function(x,y,z, done_callback)
+WorldTerrain.prototype.getCellType = function(x,y,z, done_callback)
 {	
 	var me = this;
 
@@ -94,6 +94,19 @@ WorldTerrain.prototype.getCell = function(x,y,z, done_callback)
 				done_callback(chunk_data.getType(x_i, y, z_i));
 			});
 }
+
+WorldTerrain.prototype.setCellType = function(x,y,z,t)
+{	
+	var me = this;
+
+	this.getChunk(x-x%this.chunk_xz_granularity, z-z%this.chunk_xz_granularity,
+			function(chunk_data) {
+				var x_i = x%me.chunk_xz_granularity;
+				var z_i = z%me.chunk_xz_granularity;
+				chunk_data.setType(x_i, y, z_i, t);
+			});
+}
+
 
 WorldTerrain.prototype.getMaxHeight = function(x, z, done_callback) {
 	var currentY = 127;
@@ -107,10 +120,10 @@ WorldTerrain.prototype.getMaxHeight = function(x, z, done_callback) {
 			return;
 		}
 		currentY--;
-		me.getCell(x, currentY, z, iterate);
+		me.getCellType(x, currentY, z, iterate);
 	}
 	
-	me.getCell(x, currentY, z, iterate);
+	me.getCellType(x, currentY, z, iterate);
 }
 
 module.exports.WorldTerrain = WorldTerrain;

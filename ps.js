@@ -67,6 +67,24 @@ var packItems = function (items) {
 	}
 	return buf;
 }
+
+var unpackMultiBlocks = function (pkt) {
+	var blocks = [];
+	var numBlocks = parsers.short(pkt);
+	for (var i = 0; i < numBlocks; i++)
+	{
+		coord = parsers.short(pkt);
+		blocks.push({x: (coord >> 12), z: ((coord >> 8) & 0xF), y: (coord & 0xFF)})
+	}
+	for (var i = 0; i < numBlocks; i++)
+		blocks[i].type = parsers.byte(pkt);
+	
+	for (var i = 0; i < numBlocks; i++)
+		blocks[i].meta = parsers.byte(pkt);
+	
+	return blocks;
+}
+
 var unpackItems = function (pkt) {
 	var items = [];
 	var numItems = parsers.short(pkt);
@@ -91,18 +109,26 @@ function bool(name) { return ['bool', name]; }
 function double(name) { return ['double', name]; }
 function float(name) { return ['float', name]; }
 function items(name) { return ['items', name]; }
+function multiblock(name) { return ['multiblock', name]; }
 function intstr(name) { return ['intstr', name]; }
 
 var clientPacketStructure = {
 	0x00: [],
 	0x01: [int('protoVer'), str('username'), str('password')],
 	0x02: [str('username')],
+	0x05: [int('invType'), items('items')],
 	0x0a: [bool('isFlying')],
 	0x0b: [double('x'), double('y'), double('stance'), double('z'),
 	       bool('flying')],
 	0x0c: [float('rotation'), float('pitch'), bool('flying')],
 	0x0d: [double('x'), double('y'), double('stance'), double('z'),
 	       float('rotation'), float('pitch'), bool('flying')],
+
+	0x0e: [byte('status'), int('x'), byte('y'), int('z'), byte('face')],
+	0x10: [int('uid'), short('item')],
+	0x12: [int('uid'), byte('unk')],
+		
+	0xff: [str('message')], // disconnect
 }
 
 var serverPacketStructure = {
@@ -132,6 +158,7 @@ var serverPacketStructure = {
 	0x32: [int('x'), int('z'), bool('mode')], // prechunk
 	0x33: [int('x'), short('y'), int('z'), byte('sizeX'), byte('sizeY'),
 	       byte('sizeZ'), intstr('chunk')], // map chunk, gzipped
+	0x34: [int('x'), int('z'), multiblock('blocks')], // multi block change
 	0x35: [int('x'), byte('y'), int('z'), byte('blockType'), byte('blockMetadata')],
 	0x3b: [int('x'), short('y'), int('z'), str('nbt')],
 	0xff: [str('message')], // disconnect
@@ -149,6 +176,7 @@ var packetNames = {
 	0x0b: 'PLAYER_POSITION',
 	0x0c: 'PLAYER_LOOK',
 	0x0d: 'PLAYER_MOVE_LOOK',
+	0x0e: 'DIG_BLOCK',
 	0x10: 'WIELD',
 	0x12: 'ARM_ANIM',
 	0x14: 'PLAYER_SPAWN',
@@ -195,6 +223,7 @@ var parsers = {
 	bool: unpackBool,
 	float: unpack_fmt('f'),
 	double: unpack_fmt('d'),
+	multiblock: unpackMultiBlocks,
 	items: unpackItems,
 	intstr: unpackIntString,
 }
