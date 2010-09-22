@@ -2,6 +2,7 @@ var sys = require('sys')
   , net = require('net')
   , colors = require('./colors')
   , ps = require('./ps')
+  , fs = require('fs')
   ;
 
 function concat(buf1, buf2) {
@@ -27,13 +28,14 @@ var server = net.createServer(function(stream) {
 			if (pendingData.length > 0) realServerStream.write(pendingData);
 		});
 		realServerStream.on('data', function (data) {
-			sys.debug(('S: ' + sys.inspect(data)).green);
+			//sys.debug(('S: ' + sys.inspect(data)).green);
 			var allData = concat(partialServerData, data);
 			do {
 				try {
 					//sys.debug("parsing " + sys.inspect(allData));
 					var pkt = ps.parsePacketWith(allData, ps.serverPacketStructure);
-					sys.debug('Server'.green+' sent 0x' + pkt.type.toString(16) + ' ' +
+					if (!masks[pkt.type])
+						sys.debug('Server'.green+' sent 0x' + pkt.type.toString(16) + ' ' +
 										ps.packetNames[pkt.type].bold+': ' + sys.inspect(pkt));
 					partialServerData = new Buffer(0);
 					allData = allData.slice(pkt.length, allData.length);
@@ -52,7 +54,7 @@ var server = net.createServer(function(stream) {
 	});
 
 	stream.on('data', function (data) {
-		sys.debug(("C: " + sys.inspect(data)).cyan);
+		//sys.debug(("C: " + sys.inspect(data)).cyan);
 		if (realServerStream.writable)
 			realServerStream.write(data);
 		else
@@ -62,7 +64,8 @@ var server = net.createServer(function(stream) {
 		do {
 			try {
 				var pkt = ps.parsePacket(allData);
-				sys.debug('Client'.cyan+' sent 0x'+pkt.type.toString(16)+' '+
+				if (!masks[pkt.type])
+					sys.debug('Client'.cyan+' sent 0x'+pkt.type.toString(16)+' '+
 									ps.packetNames[pkt.type].bold+': ' + sys.inspect(pkt));
 				partialData = new Buffer(0); // successfully used up the partial data
 				allData = allData.slice(pkt.length, allData.length);
@@ -78,5 +81,25 @@ var server = net.createServer(function(stream) {
 	});
 });
 
-server.listen(25565, 'localhost');
+try {
+	var cfg = String(fs.readFileSync("packet_masks")).split('\n')
+} catch (err) {
+	if (err.errno == 2) 
+		cfg = [];
+	else
+		throw err;
+}
+
+var masks = {};
+for (var i in ps.packetNames)
+	masks[i] = false;
+
+for (var maskidx in cfg)
+	for (var i in ps.packetNames)
+	{
+		if (ps.packetNames[i] == cfg[maskidx])
+			masks[i] = true;
+	}
+
+server.listen(25565, '0.0.0.0');
 sys.puts('Proxy listening on ' + 'localhost:25565'.bold.grey + '...');
