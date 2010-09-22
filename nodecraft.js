@@ -188,6 +188,9 @@ var server = net.createServer(function(stream) {
 	});
 });
 
+
+var listenOn = process.argv[2] || 'localhost';
+
 sys.puts('Nodecraft '+'v0.1'.bold.red+' starting up.')
-server.listen(25565, 'localhost');
-sys.puts('Listening on ' + 'localhost:25565'.bold.grey + '...');
+server.listen(25565, listenOn);
+sys.puts('Listening on ' + listenOn + ':25565'.bold.grey + '...');
