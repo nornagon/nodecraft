@@ -20,9 +20,19 @@ Chunk.prototype.indexOf = function (x, y, z) {
 Chunk.prototype.setType = function (x, y, z, type) {
 	this.data[this.indexOf(x,y,z)] = type;
 }
+
+Chunk.prototype.getType = function (x, y, z) {
+	return this.data[this.indexOf(x,y,z)];
+}
+
 Chunk.prototype.setMetadata = function (x, y, z, meta) {
 	this.data[this.indexOf(x,y,z) + this.sectionSize] = meta;
 }
+
+Chunk.prototype.getMetadata = function (x, y, z) {
+	return this.data[this.indexOf(x,y,z) + this.sectionSize];
+}
+
 Chunk.prototype.setLighting = function (x, y, z, lighting) {
 	var idx = this.indexOf(x,y,z)/2;
 	var byte = Math.floor(idx);

@@ -4,6 +4,8 @@ var sys = require('sys')
   , colors = require('./colors')
   , zip = require('compress')
   , chunk = require('./chunk')
+  , session = require('./session')
+  , terrain = require('./terrain')
   ;
 
 // TODO: put this useful function somewhere else
@@ -14,33 +16,64 @@ function concat(buf1, buf2) {
 	return buf;
 }
 
-function keepalive(stream, pkt) {
+function keepalive(session, pkt) {
 	// doo-de-doo
 }
 
-function handshake(stream, pkt) {
-	stream.write(ps.makePacket({
+function handshake(session, pkt) {
+	session.stream.write(ps.makePacket({
 		type: 0x02,
-		serverID: '6314c1ab00fc9b61',
+		serverID: '-',
 	}));
 }
 
-function login(stream, pkt) {
+
+function composeTerrainPacket(cb, session, x,z)
+{
+	var zippedChunk = new Buffer(0);
+	var gzip = new zip.GzipStream(zip.Z_DEFAULT_COMPRESSION, zip.MAX_WBITS);
+	gzip.on('data', function (data) {
+		zippedChunk = concat(zippedChunk, data);
+	}).on('error', function (err) {
+		throw err;
+	}).on('end', function () {
+		
+		sys.debug("X: "+x+" Z: "+z);
+		session.stream.write(ps.makePacket({
+			type: 0x33,
+			x: x, z: z, y: 0,
+			sizeX: 15, sizeY: 127, sizeZ: 15, // +1 to all
+			chunk: zippedChunk
+		}));
+		cb();
+	});
+
+	session.world.terrain.getChunk(x,z, function(chunk_data) {	
+			gzip.write(chunk_data.data);
+			gzip.close();
+			});
+}
+
+function login(session, pkt) {
 	sys.print("Protocol version: " + pkt.protoVer +
 	          "\nUsername: " + pkt.username +
 	          "\nPassword: " + pkt.password + "\n");
 
-	stream.write(ps.makePacket({
+	session.username = pkt.username;
+	session.password = pkt.password;
+	/* TODO: Add whitelist check here */
+
+	session.stream.write(ps.makePacket({
 		type: 0x01,
 		playerID: 0x0,
 		serverName: '',
 		motd: '',
 	}));
-	stream.write(ps.makePacket({
+	session.stream.write(ps.makePacket({
 		type: 0x06,
 		x: 0, y: 0, z: 0
 	}));
-	stream.write(ps.makePacket({
+	session.stream.write(ps.makePacket({
 		type: 0x03,
 		message: pkt.username + ' joined the game',
 	}));
@@ -48,7 +81,7 @@ function login(stream, pkt) {
 	// i'm going to send you some chunks!
 	for (var x = -10; x < 10; x++) {
 		for (var z = -10; z < 10; z++) {
-			stream.write(ps.makePacket({
+			session.stream.write(ps.makePacket({
 				type: 0x32,
 				mode: true,
 				x: x, z: z
@@ -60,7 +93,7 @@ function login(stream, pkt) {
 	for (var i = 0; i < 36; i++) {
 		items.push({id: -1});
 	}
-	stream.write(ps.makePacket({
+	session.stream.write(ps.makePacket({
 		type: 0x05,
 		invType: -1,
 		count: 36,
@@ -70,74 +103,71 @@ function login(stream, pkt) {
 	for (var i = 0; i < 4; i++) {
 		items.push({id: -1});
 	}
-	stream.write(ps.makePacket({
+	session.stream.write(ps.makePacket({
 		type: 0x05,
 		invType: -2,
 		count: 4,
 		items: items,
 	}));
-	stream.write(ps.makePacket({
+	session.stream.write(ps.makePacket({
 		type: 0x05,
 		invType: -3,
 		count: 4,
 		items: items,
 	}));
 
-	for (var x = -10*16; x < 10*16; x += 16) {
-		for (var z = -10*16; z < 10*16; z += 16) {
-			(function(x,z){
-				var zippedChunk = new Buffer(0);
-				var gzip = new zip.GzipStream(zip.Z_DEFAULT_COMPRESSION, zip.MAX_WBITS);
-				gzip.on('data', function (data) {
-					zippedChunk = concat(zippedChunk, data);
-				}).on('error', function (err) {
-					throw err;
-				}).on('end', function () {
-					stream.write(ps.makePacket({
-						type: 0x33,
-						x: x, z: z, y: 0,
-						sizeX: 15, sizeY: 127, sizeZ: 15, // +1 to all
-						chunk: zippedChunk
-					}));
-				});
-
-				var chunk_data = new chunk.Chunk();
-				for (var x2 = 0; x2 < 16; x2++) {
-					for (var y2 = 0; y2 < 128; y2++) {
-						for (var z2 = 0; z2 < 16; z2++) {
-							if (y2 == 0) {
-								chunk_data.setType(x2, y2, z2, 0x07);
-							} else if (y2 < 64) {
-							chunk_data.setType(x2, y2, z2, 0x03);
-							} else if (y2 == 64) {
-								chunk_data.setType(x2, y2, z2, 0x02);
-							} else {
-								chunk_data.setType(x2, y2, z2, 0x00);
-							}
-
-							if (y2 >= 60)
-								chunk_data.setLighting(x2, y2, z2, 0xf);
-							else
-								chunk_data.setLighting(x2, y2, z2, 0x0);
-						}
-					}
-				}
-
-				gzip.write(chunk_data.data);
-				gzip.close();
-			})(x,z);
+	/* Fast start */
+	for (var x = -1 * 16; x < 1 * 16; x+= 16)
+	{
+		for (var z = -1*16; z < 1*16; z += 16) {
+			/* Closure for callback [cannot do anonymously, otherwise we end up with 160,160] */
+			r = function(x,z)
+			{
+				/* Callback to be added to outgoing session task list */
+				return function (cb) {
+					return composeTerrainPacket(cb, session, x,z);
+				}	
+			}
+			session.addOutgoing(r(x,z));
 		}
 	}
 
-	stream.write(ps.makePacket({
-		type: 0x0d,
-		x: 0, y: 80, z: 0, stance: 71,
-		rotation: 0, pitch: 0,
-		flying: 0,
-	}));
+	get_and_send_position = function (cb) {
+		send_position_packet = function (posY) {
+			session.stream.write(ps.makePacket({
+				type: 0x0d,
+				x: 0, y: posY+2, z: 0, stance: 71,
+				rotation: 0, pitch: 0,
+				flying: 0,
+			}));
+			cb();
+		};
+		session.world.terrain.getMaxHeight(0,0,send_position_packet);
+	};
+
+	session.addOutgoing(get_and_send_position);
+
+	/* Send rest of packets in visible range */
+	for (var x = -10*16; x < 10*16; x += 16) {
+		for (var z = -10*16; z < 10*16; z += 16) {
+			if ((x == -16 || x == 0) && (z == -16 || z == 0))
+				continue;
+			/* Closure for callback [cannot do anonymously, otherwise we end up with 160,160 */
+			r = function(x,z)
+			{
+				/* Callback to be added to outgoing session task list */
+				return function (cb) {
+					return composeTerrainPacket(cb, session, x,z);
+				}	
+			}
+			session.addOutgoing(r(x,z));
+		}
+	}
+
+	session.pump();
 }
 
-function flying(stream, pkt) {
+function flying(session, pkt) {
 }
 
 var packets = {
@@ -146,6 +176,9 @@ var packets = {
 	0x02: handshake,
 	0x0a: flying,
 };
+
+world = new Object();
+world.terrain = new terrain.WorldTerrain();
 
 var server = net.createServer(function(stream) {
 	stream.on('connect', function () {
@@ -156,6 +189,10 @@ var server = net.createServer(function(stream) {
 			f.apply(stream, arguments);
 		}
 	});
+
+	var clientsession = new session.Session();
+	clientsession.stream = stream;
+	clientsession.world = world;
 
 	var partialData = new Buffer(0);
 	stream.on('data', function (data) {
@@ -168,7 +205,7 @@ var server = net.createServer(function(stream) {
 				pkt = ps.parsePacket(allData);
 				sys.debug(sys.inspect(pkt));
 				if (packets[pkt.type]) {
-					packets[pkt.type](stream, pkt);
+					packets[pkt.type](clientsession, pkt);
 				} else {
 					sys.debug("Unhandled packet".red.bold + " 0x"+pkt.type.toString(16));
 				}
