@@ -5,6 +5,10 @@ function WorldTerrain()
 {
 	this.chunk_xz_granularity = 16;
 
+	// TODO - this masking solution only works for power of two chunks
+	this.chunk_xz_mask = 0xF;
+	this.chunk_xz_shift = 4;
+
 	this.chunks = {};
 }
 
@@ -66,44 +70,56 @@ WorldTerrain.prototype.loadTerrain = function(x,z, done_callback) {
 		
 	}
 
-	this.chunks[[x,z]] = chunk_data;
+	this.chunks[[this.chunkIndex(x),this.chunkIndex(z)]] = chunk_data;
 	done_callback(chunk_data);
 }
 
 
 WorldTerrain.prototype.getChunk = function(x, z, done_callback) {
-	if (x % this.chunk_xz_granularity != 0 || z % this.chunk_xz_granularity != 0)
-	{
-		sys.debug("X: "+x +" Z: "+z+" XZgran: "+this.chunk_xz_granularity);
-		throw "Chunk not on boundary"
-	}
-	if (!this.chunks[[x,z]])
+	var x_i = this.chunkIndex(x);
+	var z_i = this.chunkIndex(z);
+	if (!this.chunks[[x_i,z_i]])
 		this.loadTerrain(x, z, done_callback)
 	else
-		done_callback(this.chunks[[x,z]]);
+		done_callback(this.chunks[[x_i,z_i]]);
+}
+
+WorldTerrain.prototype.chunkIndex = function(n)
+{
+	return n>>this.chunk_xz_shift;
 }
 
 WorldTerrain.prototype.getCellType = function(x,y,z, done_callback)
 {	
 	var me = this;
 
-	this.getChunk(x-x%this.chunk_xz_granularity, z-z%this.chunk_xz_granularity,
+	this.getChunk(x, z,
 			function(chunk_data) {
-				var x_i = x%me.chunk_xz_granularity;
-				var z_i = z%me.chunk_xz_granularity;
+				var x_i = x&me.chunk_xz_mask;
+				var z_i = z&me.chunk_xz_mask;
 				done_callback(chunk_data.getType(x_i, y, z_i));
 			});
+
 }
 
 WorldTerrain.prototype.setCellType = function(x,y,z,t)
 {	
 	var me = this;
 
-	this.getChunk(x-x%this.chunk_xz_granularity, z-z%this.chunk_xz_granularity,
+	this.getChunk(x, z,
 			function(chunk_data) {
-				var x_i = x%me.chunk_xz_granularity;
-				var z_i = z%me.chunk_xz_granularity;
+				var x_i = x&me.chunk_xz_mask;
+				var z_i = z&me.chunk_xz_mask;
 				chunk_data.setType(x_i, y, z_i, t);
+
+				// HACK ALERT: TODO - RECALCULATE LIGHTING / set deferred recalculate
+				chunk_data.setLighting(x_i, y, z_i, 0xF);
+				chunk_data.setLighting(x_i-1, y, z_i, 0xF);
+				chunk_data.setLighting(x_i+1, y, z_i, 0xF);
+				chunk_data.setLighting(x_i, y-1, z_i, 0xF);
+				chunk_data.setLighting(x_i, y+1, z_i, 0xF);
+				chunk_data.setLighting(x_i, y, z_i-1, 0xF);
+				chunk_data.setLighting(x_i, y, z_i+1, 0xF);
 			});
 }
 
