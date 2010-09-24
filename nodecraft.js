@@ -217,7 +217,9 @@ var server = net.createServer(function(stream) {
 		// ...
 		var f = stream.write;
 		stream.write = function () {
-			sys.debug(('S: ' + sys.inspect(ps.parsePacketWith(arguments[0], ps.serverPacketStructure))).green);
+			var pkt = ps.parsePacketWith(arguments[0], ps.serverPacketStructure);
+			sys.debug(('Server sent '+('0x'+pkt.type.toString(16)+' '+
+							ps.packetNames[pkt.type]).bold+': ' + sys.inspect(pkt)).green);
 			f.apply(stream, arguments);
 		}
 	});
@@ -234,18 +236,19 @@ var server = net.createServer(function(stream) {
 		var allData = concat(partialData, data);
 		do {
 			try {
-				sys.debug("parsing: " + sys.inspect(allData));
+				//sys.debug("parsing: " + sys.inspect(allData));
 				pkt = ps.parsePacket(allData);
-				sys.debug(sys.inspect(pkt));
+				sys.debug(('Client sent '+('0x'+pkt.type.toString(16)+' '+
+								ps.packetNames[pkt.type]).bold+': ' + sys.inspect(pkt)).cyan);
 				if (packets[pkt.type]) {
 					packets[pkt.type](clientsession, pkt);
 				} else {
 					sys.debug("Unhandled packet".red.bold + " 0x"+pkt.type.toString(16));
 				}
 				partialData = new Buffer(0); // successfully used up the partial data
-				sys.debug("pkt.length = " + pkt.length + " ; allData.length = " + allData.length);
+				//sys.debug("pkt.length = " + pkt.length + " ; allData.length = " + allData.length);
 				allData = allData.slice(pkt.length, allData.length);
-				sys.debug("Remaining data: " + sys.inspect(allData));
+				//sys.debug("Remaining data: " + sys.inspect(allData));
 			} catch (err) {
 				if (err.message == "oob") {
 					partialData = allData;

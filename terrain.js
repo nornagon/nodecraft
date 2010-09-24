@@ -1,4 +1,4 @@
-var chunk = require('chunk');
+var chunk = require('./chunk');
 var sys = require('sys');
 
 function WorldTerrain()
