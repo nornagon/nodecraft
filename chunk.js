@@ -34,16 +34,16 @@ Chunk.prototype.getMetadata = function (x, y, z) {
 }
 
 Chunk.prototype.setLighting = function (x, y, z, lighting) {
-	var idx = this.indexOf(x,y,z)/2;
-	var byte = Math.floor(idx);
-	var top = byte % 2 == 0;
+	var idx = this.indexOf(x,y,z);
+	var byte = Math.floor(idx/2);
+	var top = idx % 2 == 0;
 	var value = this.data[byte + this.sectionSize * 2];
 	if (top) {
 		value = (value & 0xf) | ((lighting & 0xf) << 4);
 	} else {
 		value = (value & 0xf0) | (lighting & 0xf);
 	}
-	this.data[byte + this.sectionSize * 2] = 0xFF;
+	this.data[byte + this.sectionSize * 2] = value;
 }
 
 exports.Chunk = Chunk;
