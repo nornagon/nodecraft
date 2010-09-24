@@ -8,6 +8,31 @@ var sys = require('sys')
   , terrain = require('./terrain')
   ;
 
+
+var enableProtocolDebug = 0;
+var enableChunkPreDebug = 0;
+var enableTerrainModsDebug = 0;
+
+
+function protodebug()
+{
+	if (enableProtocolDebug)
+		sys.debug.apply(sys, arguments);
+}
+
+function chunkpredebug()
+{
+	if (enableChunkPreDebug)
+		sys.debug.apply(sys, arguments);
+}
+
+function terrainmodsdebug()
+{
+	if (enableTerrainModsDebug)
+		sys.debug.apply(sys, arguments);
+}
+
+
 // TODO: put this useful function somewhere else
 function concat(buf1, buf2) {
 	var buf = new Buffer(buf1.length + buf2.length);
@@ -38,7 +63,7 @@ function composeTerrainPacket(cb, session, x,z)
 		throw err;
 	}).on('end', function () {
 		
-		sys.debug("X: "+x+" Z: "+z);
+		chunkpredebug("X: "+x+" Z: "+z);
 		session.stream.write(ps.makePacket({
 			type: 0x33,
 			x: x, z: z, y: 0,
@@ -136,7 +161,7 @@ function login(session, pkt) {
 		send_position_packet = function (posY) {
 			session.stream.write(ps.makePacket({
 				type: 0x0d,
-				x: 0, y: posY+2, z: 0, stance: 71,
+				x: 0.5, y: posY+4, z: 0.5, stance: 71,
 				rotation: 0, pitch: 0,
 				flying: 0,
 			}));
@@ -170,6 +195,7 @@ function login(session, pkt) {
 function blockdig(session, pkt) {
 	if (pkt.status == 0x3)
 	{
+		terrainmodsdebug("Received packet: " + sys.inspect(pkt));
 		session.world.terrain.setCellType(pkt.x,pkt.y,pkt.z,0x0);
 		session.stream.write(ps.makePacket({
 				type: 0x35,
@@ -218,7 +244,7 @@ var server = net.createServer(function(stream) {
 		var f = stream.write;
 		stream.write = function () {
 			var pkt = ps.parsePacketWith(arguments[0], ps.serverPacketStructure);
-			sys.debug(('Server sent '+('0x'+pkt.type.toString(16)+' '+
+			protodebug(('Server sent '+('0x'+pkt.type.toString(16)+' '+
 							ps.packetNames[pkt.type]).bold+': ' + sys.inspect(pkt)).green);
 			f.apply(stream, arguments);
 		}
@@ -231,19 +257,19 @@ var server = net.createServer(function(stream) {
 
 	var partialData = new Buffer(0);
 	stream.on('data', function (data) {
-		sys.debug(("C: " + sys.inspect(data)).cyan);
+		protodebug(("C: " + sys.inspect(data)).cyan);
 
 		var allData = concat(partialData, data);
 		do {
 			try {
 				//sys.debug("parsing: " + sys.inspect(allData));
 				pkt = ps.parsePacket(allData);
-				sys.debug(('Client sent '+('0x'+pkt.type.toString(16)+' '+
+				protodebug(('Client sent '+('0x'+pkt.type.toString(16)+' '+
 								ps.packetNames[pkt.type]).bold+': ' + sys.inspect(pkt)).cyan);
 				if (packets[pkt.type]) {
 					packets[pkt.type](clientsession, pkt);
 				} else {
-					sys.debug("Unhandled packet".red.bold + " 0x"+pkt.type.toString(16));
+					protodebug("Unhandled packet".red.bold + " 0x"+pkt.type.toString(16));
 				}
 				partialData = new Buffer(0); // successfully used up the partial data
 				//sys.debug("pkt.length = " + pkt.length + " ; allData.length = " + allData.length);
@@ -254,6 +280,7 @@ var server = net.createServer(function(stream) {
 					partialData = allData;
 					allData = new Buffer(0);
 				} else {
+					sys.debug(err);
 					throw err;
 				}
 			}
