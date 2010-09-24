@@ -44,6 +44,39 @@ var unpackIntString = function (pkt) {
 	return str;
 }
 
+var packBlockArr = function (blks) {
+	var buf = makers.short(blks.length);
+	var coordArr = new Buffer(0);
+	var typeArr = new Buffer(0);
+	var metadataArr = new Buffer(0);
+	blks.forEach(function (b) {
+		var coord = ((b.x & 0xf) << 12) | ((b.z & 0xf) << 8) | (b.y & 0xff);
+		coordArr = concat(coordArr, makers.short(coord));
+		typeArr = concat(typeArr, makers.byte(b.type));
+		metadataArr = concat(metadataArr, makers.byte(b.metadata));
+	});
+
+	return concat(buf, concat(coordArr, concat(typeArr, concat(metadataArr))));
+}
+var unpackBlockArr = function (pkt) {
+	var len = parsers.short(pkt);
+	var blks = [];
+	for (var i = 0; i < len; i++) {
+		var coord = parsers.short(pkt);
+		var x = (coord & 0xf000) >> 12;
+		var z = (coord & 0xf00) >> 8;
+		var y = (coord & 0xff);
+		blks.push({x: x, z: z, y: y});
+	}
+	for (var i = 0; i < len; i++) {
+		blks[i].type = parsers.byte(pkt);
+	}
+	for (var i = 0; i < len; i++) {
+		blks[i].metadata = parsers.byte(pkt);
+	}
+	return blks;
+}
+
 var unpackBool = function (pkt) {
 	pkt.needs(1);
 	var ret = pkt.data[pkt.cursor] != 0;
@@ -111,6 +144,7 @@ function float(name) { return ['float', name]; }
 function items(name) { return ['items', name]; }
 function multiblock(name) { return ['multiblock', name]; }
 function intstr(name) { return ['intstr', name]; }
+function blockarr(name) { return ['blockarr', name]; }
 
 var clientPacketStructure = {
 	0x00: [],
@@ -129,6 +163,7 @@ var clientPacketStructure = {
 	0x12: [int('uid'), byte('unk')],
 		
 	0xff: [str('message')], // disconnect
+
 }
 
 var serverPacketStructure = {
@@ -144,6 +179,7 @@ var serverPacketStructure = {
 	//0x0e: [byte('status'), int('x'), byte('y'), int('z'), byte('face')],
 	//0x0f: [short('id'), int('x'), byte('y'), int('z'), byte('direction')],
 	0x10: [int('uid'), short('item')],
+	0x11: [short('item'), byte('amount'), short('life')],
 	0x12: [int('uid'), byte('unk')],
 	0x14: [int('uid'), str('playerName'), int('x'), int('y'), int('z'), byte('rotation'), byte('pitch'), short('curItem')],
 	0x15: [int('uid'), short('item'), byte('unk'), int('x'), int('y'), int('z'), byte('rotation'), byte('pitch'), byte('unk2')],
@@ -155,6 +191,7 @@ var serverPacketStructure = {
 	0x1f: [int('uid'), byte('x'), byte('y'), byte('z')],
 	0x20: [int('uid'), byte('rotation'), byte('pitch')],
 	0x21: [int('uid'), byte('x'), byte('y'), byte('z'), byte('rotation'), byte('pitch')],
+	0x22: [int('uid'), int('x'), int('y'), int('z'), byte('rotation'), byte('pitch')],
 	0x32: [int('x'), int('z'), bool('mode')], // prechunk
 	0x33: [int('x'), short('y'), int('z'), byte('sizeX'), byte('sizeY'),
 	       byte('sizeZ'), intstr('chunk')], // map chunk, gzipped
@@ -178,6 +215,7 @@ var packetNames = {
 	0x0d: 'PLAYER_MOVE_LOOK',
 	0x0e: 'DIG_BLOCK',
 	0x10: 'WIELD',
+	0x11: 'ADD_TO_INVENTORY',
 	0x12: 'ARM_ANIM',
 	0x14: 'PLAYER_SPAWN',
 	0x15: 'PICKUP_SPAWN',
@@ -226,6 +264,7 @@ var parsers = {
 	multiblock: unpackMultiBlocks,
 	items: unpackItems,
 	intstr: unpackIntString,
+	blockarr: unpackBlockArr,
 }
 
 var makers = {
@@ -239,6 +278,7 @@ var makers = {
 	double: pack_fmt('d'),
 	items: packItems,
 	intstr: packIntString,
+	blockarr: packBlockArr,
 }
 
 exports.parsePacket = function (buf) {
