@@ -111,15 +111,16 @@ WorldTerrain.prototype.setCellType = function(x,y,z,t)
 				var x_i = x&me.chunk_xz_mask;
 				var z_i = z&me.chunk_xz_mask;
 				chunk_data.setType(x_i, y, z_i, t);
-
-				// HACK ALERT: TODO - RECALCULATE LIGHTING / set deferred recalculate
-				chunk_data.setLighting(x_i, y, z_i, 0xF);
-				chunk_data.setLighting(x_i-1, y, z_i, 0xF);
-				chunk_data.setLighting(x_i+1, y, z_i, 0xF);
-				chunk_data.setLighting(x_i, y-1, z_i, 0xF);
-				chunk_data.setLighting(x_i, y+1, z_i, 0xF);
-				chunk_data.setLighting(x_i, y, z_i-1, 0xF);
-				chunk_data.setLighting(x_i, y, z_i+1, 0xF);
+				if (t == 0) {
+					// HACK ALERT: TODO - RECALCULATE LIGHTING / set deferred recalculate
+					chunk_data.setLighting(x_i, y, z_i, 0xF);
+					chunk_data.setLighting(x_i-1, y, z_i, 0xF);
+					chunk_data.setLighting(x_i+1, y, z_i, 0xF);
+					chunk_data.setLighting(x_i, y-1, z_i, 0xF);
+					chunk_data.setLighting(x_i, y+1, z_i, 0xF);
+					chunk_data.setLighting(x_i, y, z_i-1, 0xF);
+					chunk_data.setLighting(x_i, y, z_i+1, 0xF);
+				}
 			});
 }
 

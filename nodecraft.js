@@ -6,10 +6,12 @@ var sys = require('sys')
   , chunk = require('./chunk')
   , session = require('./session')
   , terrain = require('./terrain')
+  , uniqueid = require('./uniqueid')
+  , entities = require('./entities')
   ;
 
 
-var enableProtocolDebug = 0;
+var enableProtocolDebug = 1;
 var enableChunkPreDebug = 0;
 var enableTerrainModsDebug = 0;
 
@@ -192,20 +194,129 @@ function login(session, pkt) {
 	session.pump();
 }
 
+var spawn_for_harvest = {
+	1: 4, // Stone -> cobblestone
+	2: 3, // Grass -> dirt
+	3: 3, // Dirt  -> dirt
+	4: 4, // Cobblestone -> cobblestone
+	5: 5, // Wood -> Wood
+	6: 6, // Sapling->Sapling
+	12: 12, // Sand->Sand
+	13: 13, // Gravel->Gravel
+	14: 14, // Gold Ore->Gold Ore
+	15: 15, // Iron Ore->Iron Ore
+	16: 263, // Coal Ore -> Coal
+	17: 17, // Logs -> Logs
+	37: 37, // Flower->Flower
+	38: 38, // Flower->Flower
+	39: 39, // Mushroom->Mushroom
+	40: 40, // Mushroom->Mushroom
+};
+
+
 function blockdig(session, pkt) {
 	if (pkt.status == 0x3)
 	{
 		terrainmodsdebug("Received packet: " + sys.inspect(pkt));
-		session.world.terrain.setCellType(pkt.x,pkt.y,pkt.z,0x0);
-		session.stream.write(ps.makePacket({
-				type: 0x35,
-				x: pkt.x, y: pkt.y, z: pkt.z, blockType: 0,
-				blockMetadata: 0
-			}));
+		
+		/* Get the type that was there */
+		session.world.terrain.getCellType(pkt.x, pkt.y, pkt.z,
+				function (cellType) {
+					/* Blank the cell */
+					session.world.terrain.setCellType(pkt.x,pkt.y,pkt.z,0x0);
+
+					/* Reply with block dig notification */
+					/* TODO: terrainSessionTracker should do this by listening to the chunk */
+					session.stream.write(ps.makePacket({
+							type: 0x35,
+							x: pkt.x, y: pkt.y, z: pkt.z, blockType: 0,
+							blockMetadata: 0
+						}));
+
+					/* Spawn an object to be picked up */
+					if (cellType in spawn_for_harvest)
+					{
+						// Spawn the object
+
+						var newEntity = world.entities.spawnEntity(pkt.x*32+16, pkt.y*32+16, pkt.z*32+16,
+							spawn_for_harvest[cellType],
+							0,0,0);
+
+						/* TODO - this should be done by something listening on the EntityTracker */
+						session.stream.write(ps.makePacket({
+							type: 0x15,
+							uid: newEntity.uid, item: newEntity.type,
+							x: newEntity.x, y: newEntity.y, z: newEntity.z, rotation: newEntity.rotation, pitch: newEntity.pitch,
+							unk: 1, hvel: newEntity.velocity
+						}));
+					}
+				});
 	}
 }
 
+function findBlockCoordsForDirection(x,y,z,face) {
+	switch (face) {
+		case 0: return {x: x, y: y-1, z: z};
+		case 1: return {x: x, y: y+1, z: z};
+		case 2: return {x: x, y: y, z: z-1};
+		case 3: return {x: x, y: y, z: z+1};
+		case 4: return {x: x-1, y: y, z: z};
+		case 5: return {x: x+1, y: y, z: z};
+	}
+}
+
+function blockplace(session, pkt)
+{
+	var coords = findBlockCoordsForDirection(pkt.x, pkt.y, pkt.z, pkt.face);
+	session.world.terrain.setCellType(coords.x, coords.y, coords.z, pkt.item);
+
+	/* TODO: TerrainTracker should do this by listening on the chunk and updating all clients that have it when the change goes through */
+	session.stream.write(ps.makePacket({
+		type: 0x35,
+		x: coords.x, y: coords.y, z: coords.z, blockType: pkt.item,
+		blockMetadata: 0
+	}));
+}
+
 function flying(session, pkt) {
+}
+
+function checkEntities(session, x, y, z)
+{
+	var pickups = session.world.entities.findPickups(x*32, y*32, z*32);
+	
+	for (var i=0; i<pickups.length; i++) {
+		var item = pickups[i];
+		/* TODO - this should be done by something listening on the EntityTracker */
+		session.stream.write(ps.makePacket({
+			type: 0x16,
+			collectedID: item.uid, collectorID: 142
+		}));
+
+		
+		session.stream.write(ps.makePacket({
+			type: 0x11,
+			item: item.type, amount:1, life:0
+		}));
+
+		/* TODO - also should be done by something listening on the EntityTracker - destruction of an item
+		 * on the server should push the notification to affected clients automatically, without having to do it in every case
+		 * */
+		session.stream.write(ps.makePacket({
+			type: 0x1D,
+			uid: item.uid
+		}));
+
+		session.world.entities.destroyEntity(item.uid);
+	
+	}
+}
+function moveandlook(session, pkt) {
+	checkEntities(session, pkt.x, pkt.y, pkt.z);
+}
+
+function playerpos(session, pkt) {
+	checkEntities(session, pkt.x, pkt.y, pkt.z);
 }
 
 var packets = {
@@ -213,7 +324,10 @@ var packets = {
 	0x01: login,
 	0x02: handshake,
 	0x0a: flying,
+	0x0b: playerpos,
+	0x0d: moveandlook,
 	0x0e: blockdig,
+	0x0f: blockplace,
 };
 
 
@@ -222,6 +336,8 @@ var world = new Object();
 world.terrain = new terrain.WorldTerrain();
 world.time = 0;
 world.sessions = [];
+world.uidgen = new uniqueid.UniqueIDGenerator();
+world.entities = new entities.EntityTracker(world);
 
 function sendTicks()
 {

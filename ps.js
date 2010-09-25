@@ -159,6 +159,7 @@ var clientPacketStructure = {
 	       float('rotation'), float('pitch'), bool('flying')],
 
 	0x0e: [byte('status'), int('x'), byte('y'), int('z'), byte('face')],
+	0x0f: [short('item'), int('x'), byte('y'), int('z'), byte('face')],
 	0x10: [int('uid'), short('item')],
 	0x12: [int('uid'), byte('unk')],
 		
@@ -182,7 +183,7 @@ var serverPacketStructure = {
 	0x11: [short('item'), byte('amount'), short('life')],
 	0x12: [int('uid'), byte('unk')],
 	0x14: [int('uid'), str('playerName'), int('x'), int('y'), int('z'), byte('rotation'), byte('pitch'), short('curItem')],
-	0x15: [int('uid'), short('item'), byte('unk'), int('x'), int('y'), int('z'), byte('rotation'), byte('pitch'), byte('unk2')],
+	0x15: [int('uid'), short('item'), byte('unk'), int('x'), int('y'), int('z'), byte('rotation'), byte('pitch'), byte('hvel')], // Hvel is horizontal velocity [undoc'ed on wiki]
 	0x16: [int('collectedID'), int('collectorID')],
 	0x17: [int('uid'), byte('objType'), int('x'), int('y'), int('z')],
 	0x18: [int('uid'), byte('mobType'), int('x'), int('y'), int('z'), byte('rotation'), byte('pitch')],
@@ -214,6 +215,7 @@ var packetNames = {
 	0x0c: 'PLAYER_LOOK',
 	0x0d: 'PLAYER_MOVE_LOOK',
 	0x0e: 'DIG_BLOCK',
+	0x0f: 'PLACE_BLOCK',
 	0x10: 'WIELD',
 	0x11: 'ADD_TO_INVENTORY',
 	0x12: 'ARM_ANIM',
