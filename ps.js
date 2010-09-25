@@ -150,6 +150,7 @@ var clientPacketStructure = {
 	0x00: [],
 	0x01: [int('protoVer'), str('username'), str('password')],
 	0x02: [str('username')],
+	0x03: [str('message')],
 	0x05: [int('invType'), items('items')],
 	0x0a: [bool('isFlying')],
 	0x0b: [double('x'), double('y'), double('stance'), double('z'),
@@ -162,6 +163,7 @@ var clientPacketStructure = {
 	0x0f: [short('item'), int('x'), byte('y'), int('z'), byte('face')],
 	0x10: [int('uid'), short('item')],
 	0x12: [int('uid'), byte('unk')],
+	0x15: [int('uid'), short('item'), byte('unk'), int('x'), int('y'), int('z'), byte('rotation'), byte('pitch'), byte('hvel')], // Hvel is horizontal velocity [undoc'ed on wiki]
 		
 	0xff: [str('message')], // disconnect
 

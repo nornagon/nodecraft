@@ -8,6 +8,7 @@ var sys = require('sys')
   , terrain = require('./terrain')
   , uniqueid = require('./uniqueid')
   , entities = require('./entities')
+  , fs = require('fs')
   ;
 
 
@@ -265,17 +266,47 @@ function findBlockCoordsForDirection(x,y,z,face) {
 	}
 }
 
+
+function isUsableObject(type)
+{
+	var usable_objects = {
+		61: true,
+		62:true,
+		58:true,
+		54:true
+	};
+
+	return type in usable_objects;
+}
+
 function blockplace(session, pkt)
 {
 	var coords = findBlockCoordsForDirection(pkt.x, pkt.y, pkt.z, pkt.face);
-	session.world.terrain.setCellType(coords.x, coords.y, coords.z, pkt.item);
 
-	/* TODO: TerrainTracker should do this by listening on the chunk and updating all clients that have it when the change goes through */
-	session.stream.write(ps.makePacket({
-		type: 0x35,
-		x: coords.x, y: coords.y, z: coords.z, blockType: pkt.item,
-		blockMetadata: 0
-	}));
+	if (pkt.item == -1) {
+		sys.debug("Player USING block " + pkt.x + " "+pkt.y + " "+pkt.z);
+		return;
+	
+	}
+
+	/* Check to ensure that we're building against a block that can't be "used"
+	 * If we can "use" a block; the build event is sent to tell the server that we're using that block
+	 */
+	checkBlockEventHandler = function (type) {
+		if (isUsableObject(type))
+			return;
+
+		session.world.terrain.setCellType(coords.x, coords.y, coords.z, pkt.item);
+	
+		/* TODO: TerrainTracker should do this by listening on the chunk and updating all clients that have it when the change goes through */
+		session.stream.write(ps.makePacket({
+			type: 0x35,
+			x: coords.x, y: coords.y, z: coords.z, blockType: pkt.item,
+			blockMetadata: 0
+		}));
+	};
+
+	session.world.terrain.getCellType(pkt.x, pkt.y, pkt.z, checkBlockEventHandler);
 }
 
 function flying(session, pkt) {
@@ -290,10 +321,10 @@ function checkEntities(session, x, y, z)
 		/* TODO - this should be done by something listening on the EntityTracker */
 		session.stream.write(ps.makePacket({
 			type: 0x16,
-			collectedID: item.uid, collectorID: 142
+			collectedID: item.uid, collectorID: session.uid
 		}));
 
-		
+		// Push the packet to the client's inventory
 		session.stream.write(ps.makePacket({
 			type: 0x11,
 			item: item.type, amount:1, life:0
@@ -319,10 +350,37 @@ function playerpos(session, pkt) {
 	checkEntities(session, pkt.x, pkt.y, pkt.z);
 }
 
+function grantID(session, type, count)
+{
+	if (typeof(count) == undefined)
+		count = 1;
+
+	session.stream.write(ps.makePacket({
+			type: 0x11,
+			item: type, amount:count, life:0
+		}));
+}
+
+function chat(session, pkt)
+{
+	if (pkt.message.indexOf("/grant") == 0) {
+		var tokens = pkt.message.split(" ");
+		sys.debug(sys.inspect(tokens));
+
+		var count = 1;
+		var item = parseInt(tokens[1]);
+		if (typeof(tokens[2]) != undefined) {
+			count = parseInt(tokens[2]);
+		}
+		grantID(session, item, count);
+	}
+}
+
 var packets = {
 	0x00: keepalive,
 	0x01: login,
 	0x02: handshake,
+	0x03: chat,
 	0x0a: flying,
 	0x0b: playerpos,
 	0x0d: moveandlook,
@@ -360,27 +418,30 @@ var server = net.createServer(function(stream) {
 		var f = stream.write;
 		stream.write = function () {
 			var pkt = ps.parsePacketWith(arguments[0], ps.serverPacketStructure);
-			protodebug(('Server sent '+('0x'+pkt.type.toString(16)+' '+
+
+                               if (!masks[pkt.type])
+			
+				protodebug(('Server sent '+('0x'+pkt.type.toString(16)+' '+
 							ps.packetNames[pkt.type]).bold+': ' + sys.inspect(pkt)).green);
 			f.apply(stream, arguments);
 		}
 	});
 
-	var clientsession = new session.Session();
-	clientsession.stream = stream;
-	clientsession.world = world;
+	var clientsession = new session.Session(world, stream);
 	world.sessions.push(clientsession);
 
 	var partialData = new Buffer(0);
 	stream.on('data', function (data) {
-		protodebug(("C: " + sys.inspect(data)).cyan);
+		//protodebug(("C: " + sys.inspect(data)).cyan);
 
 		var allData = concat(partialData, data);
 		do {
 			try {
 				//sys.debug("parsing: " + sys.inspect(allData));
 				pkt = ps.parsePacket(allData);
-				protodebug(('Client sent '+('0x'+pkt.type.toString(16)+' '+
+
+                                if (!masks[pkt.type])			
+					protodebug(('Client sent '+('0x'+pkt.type.toString(16)+' '+
 								ps.packetNames[pkt.type]).bold+': ' + sys.inspect(pkt)).cyan);
 				if (packets[pkt.type]) {
 					packets[pkt.type](clientsession, pkt);
@@ -396,6 +457,7 @@ var server = net.createServer(function(stream) {
 					partialData = allData;
 					allData = new Buffer(0);
 				} else {
+					sys.debug("Data in buffer: " + sys.inspect(allData));
 					sys.debug(err);
 					throw err;
 				}
@@ -403,6 +465,29 @@ var server = net.createServer(function(stream) {
 		} while (allData.length > 0)
 	});
 });
+
+
+
+
+try {
+        var cfg = String(fs.readFileSync("packet_masks")).split('\n')
+} catch (err) {
+        if (err.errno == 2)
+                cfg = [];
+        else
+                throw err;
+}
+
+var masks = {};
+for (var i in ps.packetNames)
+        masks[i] = false;
+
+for (var maskidx in cfg)
+        for (var i in ps.packetNames)
+        {
+                if (ps.packetNames[i] == cfg[maskidx])
+                        masks[i] = true;
+        }
 
 
 var listenOn = process.argv[2] || 'localhost';

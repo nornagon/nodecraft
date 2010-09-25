@@ -2,7 +2,8 @@
 
 function UniqueIDGenerator()
 {
-	this.currentID = 0;
+	// Unique ID 0 has weird effects in some places, start at 1
+	this.currentID = 1;
 }
 
 UniqueIDGenerator.prototype.allocate = function()
