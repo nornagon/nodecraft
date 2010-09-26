@@ -23,8 +23,10 @@ THE SOFTWARE.
 
 */
 
+/*global stylize */
+
 // prototypes the string object to have additional method calls that add terminal colors
-['bold', 'underline', 'italic', 'inverse', 'grey', 'yellow', 'red', 'green', 'blue', 'white', 'cyan', 'magenta'].forEach(function (style) {
+(['bold', 'underline', 'italic', 'inverse', 'grey', 'yellow', 'red', 'green', 'blue', 'white', 'cyan', 'magenta']).forEach(function (style) {
   Object.defineProperty(String.prototype, style, {
     get: function () {
       return stylize(this, style);
@@ -36,11 +38,11 @@ THE SOFTWARE.
 // rainbow will apply a the color spectrum to a string, changing colors every letter
 Object.defineProperty(String.prototype, 'rainbow', {
   get: function () {
-    var rainbowcolors = ['red','yellow','green','blue','magenta']; //RoY G BiV
-    var exploded = this.split("");
-    var i=0;
+    var rainbowcolors = ['red','yellow','green','blue','magenta'], //RoY G BiV
+        exploded = this.split(""),
+        i=0;
     exploded = exploded.map(function(letter) {
-      if (letter==" ") {
+      if (letter === " ") {
         return letter;
       } 
       else {
@@ -70,6 +72,6 @@ function stylize(str, style) {
   'red'       : [31, 39],
   'yellow'    : [33, 39]
   };
-  return '\033[' + styles[style][0] + 'm' + str +
-         '\033[' + styles[style][1] + 'm';
-};
+  return '\u001b[' + styles[style][0] + 'm' + str +
+         '\u001b[' + styles[style][1] + 'm';
+}
