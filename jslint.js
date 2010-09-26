@@ -2,17 +2,21 @@
 // www.JSLint.com
 // Rhino^W Node Edition
 
+"use strict";
+
 //  Rhino shim for node.js
 var fs = require('fs'),
     sys = require('sys'),
-    arguments = process.argv.slice(2),
+    args = process.argv.slice(2),
     readFile = function (name) {
         return fs.readFileSync(name).toString();
     },
     print = function (message) {
         sys.puts(message);        
     },
-    quit = function (code) {process.exit(code)};
+    quit = function (code) {
+        process.exit(code);
+    };
 
 // jslint.js
 // 2010-09-16
@@ -186,7 +190,7 @@ SOFTWARE.
     "border-left-width", "border-right", "border-right-color",
     "border-right-style", "border-right-width", "border-spacing",
     "border-style", "border-top", "border-top-color", "border-top-style",
-    "border-top-width", "border-width", bottom, br, brown, browser,
+    "border-top-width", "border-width", bottom, br, brown, browser, Buffer,
     burlywood, button, bytesToUIString, c, cadetblue, call, callee, caller,
     canvas, cap, caption, "caption-side", cases, center, charAt, charCodeAt,
     character, chartreuse, chocolate, chooseColor, chooseFile, chooseFolder,
@@ -203,9 +207,9 @@ SOFTWARE.
     details, devel, dfn, dialog, dimension, dimgray, dir, direction,
     display, div, dl, document, dodgerblue, dt, edition, else, em, embed,
     empty, "empty-cells", encodeURI, encodeURIComponent, entityify, eqeqeq,
-    errors, es5, escape, eval, event, evidence, evil, ex, exception, exec, exps,
-    fieldset, figure, filesystem, firebrick, first, float, floor,
-    floralwhite, focus, focusWidget, font, "font-face", "font-family",
+    errors, es5, escape, eval, event, evidence, evil, ex, exception, exec,
+    exports, exps, fieldset, figure, filesystem, firebrick, first, float,
+    floor, floralwhite, focus, focusWidget, font, "font-face", "font-family",
     "font-size", "font-size-adjust", "font-stretch", "font-style",
     "font-variant", "font-weight", footer, forestgreen, forin, form,
     fragment, frame, frames, frameset, from, fromCharCode, fuchsia, fud,
@@ -232,7 +236,7 @@ SOFTWARE.
     mediumturquoise, mediumvioletred, member, menu, message, meta, meter,
     midnightblue, "min-height", "min-width", mintcream, mistyrose, mm,
     moccasin, moveBy, moveTo, name, nav, navajowhite, navigator, navy, new,
-    newcap, noframes, nomen, noscript, nud, object, ol, oldlace, olive,
+    newcap, node, noframes, nomen, noscript, nud, object, ol, oldlace, olive,
     olivedrab, on, onbeforeunload, onblur, onerror, onevar, onfocus, onload,
     onresize, onunload, opacity, open, openURL, opener, opera, optgroup,
     option, orange, orangered, orchid, outer, outline, "outline-color",
@@ -243,10 +247,10 @@ SOFTWARE.
     palevioletred, papayawhip, param, parent, parseFloat, parseInt,
     passfail, pc, peachpuff, peru, pink, play, plum, plusplus, pop,
     popupMenu, position, powderblue, pre, predef, preferenceGroups,
-    preferences, print, progress, prompt, prototype, pt, purple, push, px,
-    q, quit, quotes, random, range, raw, reach, readFile, readUrl, reason,
-    red, regexp, reloadWidget, removeEventListener, replace, report,
-		reserved, resizeBy, resizeTo, resolvePath, resumeUpdates, rhino, node,
+    preferences, print, process, progress, prompt, prototype, pt, purple, push,
+    px, q, quit, quotes, random, range, raw, reach, readFile, readUrl, reason,
+    red, regexp, reloadWidget, removeEventListener, replace, report, require,
+    reserved, resizeBy, resizeTo, resolvePath, resumeUpdates, rhino,
     right, rosybrown, royalblue, rp, rt, ruby, runCommand, runCommandInBg,
     saddlebrown, safe, salmon, samp, sandybrown, saveAs, savePreferences,
     screen, script, scroll, scrollBy, scrollTo, seagreen, seal, search,
@@ -270,8 +274,6 @@ SOFTWARE.
 // We build the application inside a function so that we produce only a single
 // global variable. The function will be invoked, its return value is the JSLINT
 // application itself.
-
-"use strict";
 
 var JSLINT = (function () {
     var adsafe_id,      // The widget's ADsafe id.
@@ -752,10 +754,11 @@ var JSLINT = (function () {
         },
 
         node = {
-        	require : false,
-        	exports : false,
-        	Buffer  : false,
-				},
+            require : false,
+            exports : false,
+            process : false,
+            Buffer  : false
+        },
 
         scope,      // The current scope
 
@@ -5755,8 +5758,7 @@ Copyright (c) 2002 Douglas Crockford  (www.JSLint.com) Rhino Edition
             if (e) {
                 print('Lint at line ' + e.line + ' character ' +
                         e.character + ': ' + e.reason);
-                print((e.evidence || '').
-                        replace(/^\s*(\S*(\s+\S+)*)\s*$/, "$1"));
+                print((e.evidence || '').replace(/^\s*(\S*(\s+\S+)*)\s*$/, "$1"));
                 print('');
             }
         }
@@ -5765,4 +5767,4 @@ Copyright (c) 2002 Douglas Crockford  (www.JSLint.com) Rhino Edition
         print("jslint: No problems found in " + a[0]);
         quit();
     }
-}(arguments));
+}(args));
