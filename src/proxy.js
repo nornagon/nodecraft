@@ -1,8 +1,14 @@
+(function () {
+	var path = require('path');
+	var lib_path = path.join(path.dirname(process.argv[1]), '..', 'lib');
+	require.paths.push(path.normalize(lib_path));
+})();
+
 var sys = require('sys')
   , net = require('net')
-  , colors = require('./colors')
-  , ps = require('./ps')
   , fs = require('fs')
+  , colors = require('colors')
+  , ps = require('./protocol')
   ;
 
 function concat(buf1, buf2) {

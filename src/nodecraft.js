@@ -6,15 +6,15 @@
 
 var sys = require('sys')
   , net = require('net')
-  , ps = require('./ps')
   , colors = require('colors')
   , zip = require('compress')
+  , fs = require('fs')
+  , ps = require('./protocol')
   , chunk = require('./chunk')
   , session = require('./session')
   , terrain = require('./terrain')
   , uniqueid = require('./uniqueid')
   , entities = require('./entities')
-  , fs = require('fs')
   ;
 
 
