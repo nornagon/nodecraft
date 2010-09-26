@@ -1,7 +1,13 @@
+(function () {
+	var path = require('path');
+	var lib_path = path.join(path.dirname(process.argv[1]), '..', 'lib');
+	require.paths.push(path.normalize(lib_path));
+})();
+
 var sys = require('sys')
   , net = require('net')
   , ps = require('./ps')
-  , colors = require('./colors')
+  , colors = require('colors')
   , zip = require('compress')
   , chunk = require('./chunk')
   , session = require('./session')

@@ -1,5 +1,5 @@
 var sys = require('sys');
-var pack = require('./jspack').jspack;
+var pack = require('jspack').jspack;
 
 function concat(buf1, buf2) {
 	var buf = new Buffer(buf1.length + buf2.length);
