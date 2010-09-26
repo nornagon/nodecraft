@@ -30,7 +30,7 @@ WorldTerrain.prototype.loadTerrain = function(x,z, done_callback) {
 					chunk_data.setType(x2, y2, z2, 0x00);
 				}
 
-				if (y2 >= threshold)
+				if (y2 > threshold)
 					chunk_data.setLighting(x2, y2, z2, 0xf);
 				else
 					chunk_data.setLighting(x2, y2, z2, 0x0);
