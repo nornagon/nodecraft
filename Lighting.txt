@@ -1,0 +1,74 @@
+Light falls from the sky vertically: every block between the highest
+non-light-transmitting block and the top of the chunk gets its light value set
+to 0xf. Non-light-transmitting blocks should have their lighting value set to
+0.
+
+Blocks that are not directly lit should have their lighting value set to 1 less
+than the value of the neighbouring block with the highest lighting value, but
+not lower than 1. eg:
+
+  111111111111
+  111121121111
+  111232232111
+  112343343211
+  111232232111 
+z 111121121111 
+↑ 111111111111
+ → x
+
+This would be trivial to implement in a finite world, but since minecraft is
+infinite, we need to be careful to calculate the correct lighting without
+loading in an infinite amount of world.
+
+Tricky cases occur around chunk boundaries:
+
+  C1 ← → C2
+
+  1111|ffff
+  0000|ffff
+  bcde|ffff
+  bcde|ffff
+y bcde|ffff
+↑ 0000|0000
+ → x
+
+
+If we calculate the lighting for C1 without considering C2, we end up with
+this:
+
+  C1 ← → C2
+
+  1111|ffff
+  0000|ffff
+  1111|ffff
+  1111|ffff
+y 1111|ffff
+↑ 0000|0000
+ → x
+
+But to correctly calculate the lighting for C2, we need to calculate the
+lighting for C3, and so on to INT_MAX.
+
+
+The solution is to calculate C2's lighting without considering C3. Any lights
+in C3 can't possibly affect the lighting in C1, since chunks are 16 blocks
+wide. When the time comes to 'really' calculate lighting for C2, we must then
+calculate partial lighting for C3, and so on.
+
+
+Another case to be kept in mind is light 'spillage' across chunk boundaries:
+
+C3         C4
+
+  6789|a987
+  789a|ba98
+  89ab|cba9
+  ----+----
+  78==|dcba
+  67=f|edcb
+  56==|dcba
+
+C1         C2
+
+If any of the three adjacent chunks {C2,C3,C4} were ignored, the light in C1
+would be incorrect.
