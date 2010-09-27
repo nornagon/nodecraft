@@ -24,7 +24,7 @@ Tricky cases occur around chunk boundaries:
 
   C1 ← → C2
 
-  1111|ffff
+  ffff|ffff
   0000|ffff
   bcde|ffff
   bcde|ffff
@@ -38,7 +38,7 @@ this:
 
   C1 ← → C2
 
-  1111|ffff
+  ffff|ffff
   0000|ffff
   1111|ffff
   1111|ffff
