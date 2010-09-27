@@ -1,8 +1,7 @@
 var chunk = require('./chunk');
 var sys = require('sys');
 
-function WorldTerrain()
-{
+function WorldTerrain() {
 	this.chunk_xz_granularity = 16;
 
 	// TODO - this masking solution only works for power of two chunks
@@ -12,9 +11,7 @@ function WorldTerrain()
 	this.chunks = {};
 }
 
-/* Stubbed out with procedural terrain generator */
-WorldTerrain.prototype.loadTerrain = function(x,z, done_callback) {
-	var chunk_data = new chunk.Chunk();
+function fillChunk(chunk_data, x, z) {
 	for (var x2 = 0; x2 < 16; x2++) {
 		for (var y2 = 0; y2 < 128; y2++) {
 			for (var z2 = 0; z2 < 16; z2++) {
@@ -29,11 +26,6 @@ WorldTerrain.prototype.loadTerrain = function(x,z, done_callback) {
 				} else {
 					chunk_data.setType(x2, y2, z2, 0x00);
 				}
-
-				if (y2 > threshold)
-					chunk_data.setLighting(x2, y2, z2, 0xf);
-				else
-					chunk_data.setLighting(x2, y2, z2, 0x0);
 			}
 		}
 	}
@@ -69,11 +61,16 @@ WorldTerrain.prototype.loadTerrain = function(x,z, done_callback) {
 			chunk_data.setType(tx, i+ty, tz, 17);
 		
 	}
+}
+
+/* Stubbed out with procedural terrain generator */
+WorldTerrain.prototype.loadTerrain = function(x,z, done_callback) {
+	var chunk_data = new chunk.Chunk();
+	fillChunk(chunk_data, x, z);
 
 	this.chunks[[this.chunkIndex(x),this.chunkIndex(z)]] = chunk_data;
 	done_callback(chunk_data);
 }
-
 
 WorldTerrain.prototype.getChunk = function(x, z, done_callback) {
 	var x_i = this.chunkIndex(x);
@@ -86,7 +83,7 @@ WorldTerrain.prototype.getChunk = function(x, z, done_callback) {
 
 WorldTerrain.prototype.chunkIndex = function(n)
 {
-	return n>>this.chunk_xz_shift;
+	return n >> this.chunk_xz_shift;
 }
 
 WorldTerrain.prototype.getCellType = function(x,y,z, done_callback)
@@ -95,21 +92,20 @@ WorldTerrain.prototype.getCellType = function(x,y,z, done_callback)
 
 	this.getChunk(x, z,
 			function(chunk_data) {
-				var x_i = x&me.chunk_xz_mask;
-				var z_i = z&me.chunk_xz_mask;
+				var x_i = x & me.chunk_xz_mask;
+				var z_i = z & me.chunk_xz_mask;
 				done_callback(chunk_data.getType(x_i, y, z_i));
 			});
 
 }
 
-WorldTerrain.prototype.setCellType = function(x,y,z,t)
-{	
+WorldTerrain.prototype.setCellType = function (x,y,z,t) {	
 	var me = this;
 
 	this.getChunk(x, z,
-			function(chunk_data) {
-				var x_i = x&me.chunk_xz_mask;
-				var z_i = z&me.chunk_xz_mask;
+			function (chunk_data) {
+				var x_i = x & me.chunk_xz_mask;
+				var z_i = z & me.chunk_xz_mask;
 				chunk_data.setType(x_i, y, z_i, t);
 				if (t == 0) {
 					// HACK ALERT: TODO - RECALCULATE LIGHTING / set deferred recalculate
@@ -124,8 +120,149 @@ WorldTerrain.prototype.setCellType = function(x,y,z,t)
 			});
 }
 
+function asyncMap (fn, list, cb_) {
+  if (typeof cb_ !== "function") throw new Error(
+    "No callback provided to asyncMap");
+  var data = []
+    , l = list.length;
+  if (!l) return cb_(null, []);
+  function cb (d) {
+    data = data.concat(d);
+    if (-- l === 0) cb_(data);
+  }
+  list.forEach(function (ar) { fn(ar, cb) });
+}
 
-WorldTerrain.prototype.getMaxHeight = function(x, z, done_callback) {
+// Recalculate lighting for the given chunk.
+WorldTerrain.prototype.recalculateLighting = function (x, z, cb) {
+	var me = this;
+	var x_i = x >> me.chunk_xz_shift, z_i = z >> me.chunk_xz_shift;
+
+	sys.debug("light for " + x + "," + z);
+
+	// make sure all the terrain is loaded around x_i,y_i.
+	asyncMap(function (d, cb) {
+		me.getChunk(
+			(x_i+d[0]) << me.chunk_xz_shift,
+			(z_i+d[1]) << me.chunk_xz_shift, cb);
+	},
+	  [[-1,-1], [0,-1], [1,-1],
+	   [-1, 0], [0, 0], [1, 0],
+	   [-1, 1], [0, 1], [1, 1]], done);
+
+	// once that's done, ...
+	function done(data) {
+		function dchunk(dx, dz) {
+			return data[dx+1+(dz+1)*3];
+		}
+		function chunkFor(x,z) {
+			var lx_i = x >> me.chunk_xz_shift, lz_i = z >> me.chunk_xz_shift;
+			var dx_i = x_i - lx_i, dz_i = z_i - lx_i;
+			return dchunk(dx_i, dz_i);
+		}
+		// step 1: set everything above ground to 0xf
+		for (var dx = -1; dx <= 1; dx++) {
+			for (var dz = -1; dz <= 1; dz++) {
+				var chunk_data = dchunk(dx, dz);
+				if (!chunk.lit) {
+					chunk_data.clearLight();
+					chunk_data.setSkyLight(0xf);
+				}
+			}
+		}
+
+		// step 2: find lit blocks that haven't correctly filled adjacent blocks.
+		// TODO: don't hardcode chunk size :/
+		var baseX = (x_i-1) << me.chunk_xz_shift;
+		var baseZ = (z_i-1) << me.chunk_xz_shift;
+		for (var x = 0; x < 16*3; x++) {
+			for (var z = 0; z < 16*3; z++) {
+				for (var y = 0; y < 128; y++) {
+					if (!inBounds(x,y,z)) continue;
+					if (!isFlooded(x+baseX, y, z+baseZ)) {
+						floodLightFrom(x+baseX, y, z+baseZ);
+					}
+				}
+			}
+		}
+
+		me.chunks[[x_i, z_i]].lit = true;
+
+		cb();
+
+		function isFlooded(x,y,z) {
+			var light = lightingAt(x,y,z);
+			for (var dx = -1; dx <= 1; dx++) {
+				for (var dz = -1; dz <= 1; dz++) {
+					for (var dy = -1; dy <= 1; dy++) {
+						if (inBounds(x+dx,y+dy,z+dz)) {
+							if (lightingAt(x+dx,y+dy,z+dz) < light-1) {
+								return false;
+							}
+						}
+					}
+				}
+			}
+			return true;
+		}
+
+		function floodLightFrom(x,y,z) {
+			var light = lightingAt(x,y,z);
+			if (light <= 1) return;
+			for (var dx = -1; dx <= 1; dx++) {
+				for (var dz = -1; dz <= 1; dz++) {
+					for (var dy = -1; dy <= 1; dy++) {
+						if (!inBounds(x+dx, y+dy, z+dz)) { continue; }
+						if (!isPenetrable(x+dx, y+dy, z+dz)) { continue; }
+						if (lightingAt(x+dx, y+dy, z+dz) < light-1) {
+							setLightingAt(x+dx, y+dy, z+dz, light-1);
+							floodLightFrom(x+dx, y+dy, z+dz);
+						}
+					}
+				}
+			}
+		}
+
+		function inBounds(x,y,z) {
+			return x >= ((x_i-1) << me.chunk_xz_shift) &&
+			       x <  ((x_i+1) << me.chunk_xz_shift) &&
+			       z >= ((z_i-1) << me.chunk_xz_shift) &&
+			       z <  ((z_i+1) << me.chunk_xz_shift) &&
+			       y >= 0 && y < 128;
+		}
+
+		// TODO: ugly ugly ugly :(
+		function lightingAt(x,y,z) {
+			var cx_i = x >> me.chunk_xz_shift,
+			    cz_i = z >> me.chunk_xz_shift,
+			    cx = cx_i << me.chunk_xz_shift,
+			    cz = cz_i << me.chunk_xz_shift;
+			try {
+				return chunkFor(x,z).getLighting(x-cx, y, z-cz);
+			} catch (err) {
+				sys.debug('x: '+x+' z: '+z);
+				throw err
+			}
+		}
+		function setLightingAt(x,y,z, light) {
+			var cx_i = x >> me.chunk_xz_shift,
+			    cz_i = z >> me.chunk_xz_shift,
+			    cx = cx_i << me.chunk_xz_shift,
+			    cz = cz_i << me.chunk_xz_shift;
+			return chunkFor(x,z).setLighting(x-cx, y, z-cz, light);
+		}
+		function isPenetrable(x,y,z) {
+			var cx_i = x >> me.chunk_xz_shift,
+			    cz_i = z >> me.chunk_xz_shift,
+			    cx = cx_i << me.chunk_xz_shift,
+			    cz = cz_i << me.chunk_xz_shift;
+			return chunk.transmitsLight(chunkFor(x,z).getType(x-cx, y, z-cz));
+		}
+	}
+}
+
+
+WorldTerrain.prototype.getMaxHeight = function (x, z, done_callback) {
 	var currentY = 127;
 	var me = this;
 

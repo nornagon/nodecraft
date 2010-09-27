@@ -151,9 +151,9 @@ function login(session, pkt) {
 	}));
 
 	/* Fast start */
-	for (var x = -1 * 16; x < 1 * 16; x+= 16)
+	for (var x = -1 * 16; x < 1 * 16; x += 16)
 	{
-		for (var z = -1*16; z < 1*16; z += 16) {
+		for (var z = -1 * 16; z < 1 * 16; z += 16) {
 			/* Closure for callback [cannot do anonymously, otherwise we end up with 160,160] */
 			r = function(x,z)
 			{
@@ -162,7 +162,9 @@ function login(session, pkt) {
 					return composeTerrainPacket(cb, session, x,z);
 				}	
 			}
-			session.addOutgoing(r(x,z));
+			session.world.terrain.recalculateLighting(x,z, function () {
+				session.addOutgoing(r(x,z));
+			});
 		}
 	}
 
@@ -444,9 +446,9 @@ var server = net.createServer(function(stream) {
 		do {
 			try {
 				//sys.debug("parsing: " + sys.inspect(allData));
-				pkt = ps.parsePacket(allData);
+				var pkt = ps.parsePacket(allData);
 
-                                if (!masks[pkt.type])			
+				if (!masks[pkt.type])
 					protodebug(('Client sent '+('0x'+pkt.type.toString(16)+' '+
 								ps.packetNames[pkt.type]).bold+': ' + sys.inspect(pkt)).cyan);
 				if (packets[pkt.type]) {
