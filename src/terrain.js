@@ -164,13 +164,15 @@ WorldTerrain.prototype.recalculateLighting = function (x, z, cb) {
 		for (var dx = -1; dx <= 1; dx++) {
 			for (var dz = -1; dz <= 1; dz++) {
 				var chunk_data = dchunk(dx, dz);
-				if (!chunk.lit) {
+				if (chunk_data.lit < 1) {
 					chunk_data.clearLight();
 					chunk_data.setSkyLight(0xf);
+					chunk_data.lit = 1;
 				}
 			}
 		}
 
+		var numFlooded = 0;
 		// step 2: find lit blocks that haven't correctly filled adjacent blocks.
 		// TODO: don't hardcode chunk size :/
 		var baseX = (x_i-1) << me.chunk_xz_shift;
@@ -179,24 +181,31 @@ WorldTerrain.prototype.recalculateLighting = function (x, z, cb) {
 			for (var z = 0; z < 16*3; z++) {
 				for (var y = 0; y < 128; y++) {
 					if (!inBounds(x+baseX, y, z+baseZ)) continue;
+					// don't flood from impenetrable blocks, since they are all dark.
+					if (!isPenetrable(x+baseX, y, z+baseZ)) continue;
 					if (!isFlooded(x+baseX, y, z+baseZ)) {
 						floodLightFrom(x+baseX, y, z+baseZ);
+						numFlooded++;
 					}
 				}
 			}
 		}
+		sys.debug("flooded: " + numFlooded);
 
-		me.chunks[[x_i, z_i]].lit = true;
+		dchunk(0,0).lit = 2;
 
 		cb();
 
 		function isFlooded(x,y,z) {
 			var light = lightingAt(x,y,z);
+			if (light <= 1) return true;
 			for (var dx = -1; dx <= 1; dx++) {
 				for (var dz = -1; dz <= 1; dz++) {
 					for (var dy = -1; dy <= 1; dy++) {
+						if (Math.abs(dx)+Math.abs(dz)+Math.abs(dy) > 1) continue;
 						if (inBounds(x+dx,y+dy,z+dz)) {
-							if (lightingAt(x+dx,y+dy,z+dz) < light-1) {
+							if (isPenetrable(x+dx,y+dy,z+dz) &&
+									lightingAt(x+dx,y+dy,z+dz) < light-1) {
 								return false;
 							}
 						}
@@ -212,11 +221,14 @@ WorldTerrain.prototype.recalculateLighting = function (x, z, cb) {
 			for (var dx = -1; dx <= 1; dx++) {
 				for (var dz = -1; dz <= 1; dz++) {
 					for (var dy = -1; dy <= 1; dy++) {
+						if (dx === 0 && dz === 0 && dy === 0) { continue; }
 						if (!inBounds(x+dx, y+dy, z+dz)) { continue; }
 						if (!isPenetrable(x+dx, y+dy, z+dz)) { continue; }
 						if (lightingAt(x+dx, y+dy, z+dz) < light-1) {
 							setLightingAt(x+dx, y+dy, z+dz, light-1);
-							floodLightFrom(x+dx, y+dy, z+dz);
+							if (light-1 > 1) {
+								floodLightFrom(x+dx, y+dy, z+dz);
+							}
 						}
 					}
 				}

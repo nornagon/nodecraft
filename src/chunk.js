@@ -6,7 +6,7 @@ var Chunk = function () {
 	this.sizeZ = 16;
 
 	this.sectionSize = this.sizeX * this.sizeY * this.sizeZ;
-	this.lit = false;
+	this.lit = 0;
 
 	this.data = new Buffer(this.sizeX * this.sizeY * this.sizeZ * 2.5);
 	for (var i = 0; i < this.data.length; i++) {
