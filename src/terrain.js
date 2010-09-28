@@ -157,7 +157,7 @@ WorldTerrain.prototype.recalculateLighting = function (x, z, cb) {
 		}
 		function chunkFor(x,z) {
 			var lx_i = x >> me.chunk_xz_shift, lz_i = z >> me.chunk_xz_shift;
-			var dx_i = x_i - lx_i, dz_i = z_i - lx_i;
+			var dx_i = x_i - lx_i, dz_i = z_i - lz_i;
 			return dchunk(dx_i, dz_i);
 		}
 		// step 1: set everything above ground to 0xf
@@ -178,7 +178,7 @@ WorldTerrain.prototype.recalculateLighting = function (x, z, cb) {
 		for (var x = 0; x < 16*3; x++) {
 			for (var z = 0; z < 16*3; z++) {
 				for (var y = 0; y < 128; y++) {
-					if (!inBounds(x,y,z)) continue;
+					if (!inBounds(x+baseX, y, z+baseZ)) continue;
 					if (!isFlooded(x+baseX, y, z+baseZ)) {
 						floodLightFrom(x+baseX, y, z+baseZ);
 					}
@@ -240,8 +240,8 @@ WorldTerrain.prototype.recalculateLighting = function (x, z, cb) {
 			try {
 				return chunkFor(x,z).getLighting(x-cx, y, z-cz);
 			} catch (err) {
-				sys.debug('x: '+x+' z: '+z);
-				throw err
+				sys.debug('x: '+x+' z: '+z+ ' x_i: '+x_i + ' z_i: '+z_i);
+				throw err;
 			}
 		}
 		function setLightingAt(x,y,z, light) {

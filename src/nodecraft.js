@@ -62,8 +62,7 @@ function handshake(session, pkt) {
 }
 
 
-function composeTerrainPacket(cb, session, x,z)
-{
+function composeTerrainPacket(cb, session, x,z) {
 	var zippedChunk = new Buffer(0);
 	var gzip = new zip.GzipStream(zip.Z_DEFAULT_COMPRESSION, zip.MAX_WBITS);
 	gzip.on('data', function (data) {
@@ -151,15 +150,13 @@ function login(session, pkt) {
 	}));
 
 	/* Fast start */
-	for (var x = -1 * 16; x < 1 * 16; x += 16)
-	{
+	for (var x = -1 * 16; x < 1 * 16; x += 16) {
 		for (var z = -1 * 16; z < 1 * 16; z += 16) {
 			/* Closure for callback [cannot do anonymously, otherwise we end up with 160,160] */
-			r = function(x,z)
-			{
+			r = function(x,z) {
 				/* Callback to be added to outgoing session task list */
 				return function (cb) {
-					return composeTerrainPacket(cb, session, x,z);
+					composeTerrainPacket(cb, session, x,z);
 				}	
 			}
 			session.world.terrain.recalculateLighting(x,z, function () {
@@ -189,11 +186,12 @@ function login(session, pkt) {
 			if ((x == -16 || x == 0) && (z == -16 || z == 0))
 				continue;
 			/* Closure for callback [cannot do anonymously, otherwise we end up with 160,160 */
-			r = function(x,z)
-			{
+			r = function(x,z) {
 				/* Callback to be added to outgoing session task list */
 				return function (cb) {
-					return composeTerrainPacket(cb, session, x,z);
+					session.world.terrain.recalculateLighting(x,z, function () {
+						composeTerrainPacket(cb, session, x,z);
+					});
 				}	
 			}
 			session.addOutgoing(r(x,z));
@@ -275,8 +273,7 @@ function findBlockCoordsForDirection(x,y,z,face) {
 }
 
 
-function isUsableObject(type)
-{
+function isUsableObject(type) {
 	var usable_objects = {
 		61: true,
 		62:true,
@@ -287,8 +284,7 @@ function isUsableObject(type)
 	return type in usable_objects;
 }
 
-function blockplace(session, pkt)
-{
+function blockplace(session, pkt) {
 	var coords = findBlockCoordsForDirection(pkt.x, pkt.y, pkt.z, pkt.face);
 
 	if (pkt.item == -1) {
@@ -320,8 +316,7 @@ function blockplace(session, pkt)
 function flying(session, pkt) {
 }
 
-function checkEntities(session, x, y, z)
-{
+function checkEntities(session, x, y, z) {
 	var pickups = session.world.entities.findPickups(x*32, y*32, z*32);
 	
 	for (var i=0; i<pickups.length; i++) {
@@ -358,8 +353,7 @@ function playerpos(session, pkt) {
 	checkEntities(session, pkt.x, pkt.y, pkt.z);
 }
 
-function grantID(session, type, count)
-{
+function grantID(session, type, count) {
 	if (typeof(count) == undefined)
 		count = 1;
 
@@ -369,8 +363,7 @@ function grantID(session, type, count)
 		}));
 }
 
-function chat(session, pkt)
-{
+function chat(session, pkt) {
 	if (pkt.message.indexOf("/grant") == 0) {
 		var tokens = pkt.message.split(" ");
 		sys.debug(sys.inspect(tokens));
@@ -405,10 +398,8 @@ world.sessions = [];
 world.uidgen = new uniqueid.UniqueIDGenerator();
 world.entities = new entities.EntityTracker(world);
 
-function sendTicks()
-{
-	for (var i=0; i<world.sessions.length; i++)
-	{
+function sendTicks() {
+	for (var i=0; i<world.sessions.length; i++) {
 		var session = world.sessions[i];
 		session.stream.write(ps.makePacket({
 			type: 0x04,
@@ -427,10 +418,10 @@ var server = net.createServer(function(stream) {
 		stream.write = function () {
 			var pkt = ps.parsePacketWith(arguments[0], ps.serverPacketStructure);
 
-                               if (!masks[pkt.type])
-			
+			if (!masks[pkt.type]) {
 				protodebug(('Server sent '+('0x'+pkt.type.toString(16)+' '+
-							ps.packetNames[pkt.type]).bold+': ' + sys.inspect(pkt)).green);
+				      ps.packetNames[pkt.type]).bold+': ' + sys.inspect(pkt)).green);
+			}
 			f.apply(stream, arguments);
 		}
 	});
@@ -450,7 +441,7 @@ var server = net.createServer(function(stream) {
 
 				if (!masks[pkt.type])
 					protodebug(('Client sent '+('0x'+pkt.type.toString(16)+' '+
-								ps.packetNames[pkt.type]).bold+': ' + sys.inspect(pkt)).cyan);
+					      ps.packetNames[pkt.type]).bold+': ' + sys.inspect(pkt)).cyan);
 				if (packets[pkt.type]) {
 					packets[pkt.type](clientsession, pkt);
 				} else {
@@ -478,24 +469,25 @@ var server = net.createServer(function(stream) {
 
 
 try {
-        var cfg = String(fs.readFileSync("packet_masks")).split('\n')
+	var cfg = String(fs.readFileSync("packet_masks")).split('\n')
 } catch (err) {
-        if (err.errno == 2)
-                cfg = [];
-        else
-                throw err;
+	if (err.errno == 2)
+		cfg = [];
+	else
+		throw err;
 }
 
 var masks = {};
-for (var i in ps.packetNames)
-        masks[i] = false;
+for (var i in ps.packetNames) {
+	masks[i] = false;
+}
 
-for (var maskidx in cfg)
-        for (var i in ps.packetNames)
-        {
-                if (ps.packetNames[i] == cfg[maskidx])
-                        masks[i] = true;
-        }
+for (var maskidx in cfg) {
+	for (var i in ps.packetNames) {
+		if (ps.packetNames[i] == cfg[maskidx])
+			masks[i] = true;
+	}
+}
 
 
 var listenOn = process.argv[2] || 'localhost';
