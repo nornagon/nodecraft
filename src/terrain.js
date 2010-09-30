@@ -180,7 +180,6 @@ WorldTerrain.prototype.recalculateLighting = function (x, z, cb) {
 		for (var x = 0; x < 16*3; x++) {
 			for (var z = 0; z < 16*3; z++) {
 				for (var y = 0; y < 128; y++) {
-					if (!inBounds(x+baseX, y, z+baseZ)) continue;
 					// don't flood from impenetrable blocks, since they are all dark.
 					if (!isPenetrable(x+baseX, y, z+baseZ)) continue;
 					if (!isFlooded(x+baseX, y, z+baseZ)) {
@@ -199,10 +198,11 @@ WorldTerrain.prototype.recalculateLighting = function (x, z, cb) {
 		function isFlooded(x,y,z) {
 			var light = lightingAt(x,y,z);
 			if (light <= 1) return true;
+			// TODO: unroll?
 			for (var dx = -1; dx <= 1; dx++) {
 				for (var dz = -1; dz <= 1; dz++) {
 					for (var dy = -1; dy <= 1; dy++) {
-						if (Math.abs(dx)+Math.abs(dz)+Math.abs(dy) > 1) continue;
+						if ((dx<0?-dx:dx)+(dz<0?-dz:dz)+(dy<0?-dy:dy) != 1) continue;
 						if (inBounds(x+dx,y+dy,z+dz)) {
 							if (isPenetrable(x+dx,y+dy,z+dz) &&
 									lightingAt(x+dx,y+dy,z+dz) < light-1) {
@@ -249,12 +249,7 @@ WorldTerrain.prototype.recalculateLighting = function (x, z, cb) {
 			    cz_i = z >> me.chunk_xz_shift,
 			    cx = cx_i << me.chunk_xz_shift,
 			    cz = cz_i << me.chunk_xz_shift;
-			try {
-				return chunkFor(x,z).getLighting(x-cx, y, z-cz);
-			} catch (err) {
-				sys.debug('x: '+x+' z: '+z+ ' x_i: '+x_i + ' z_i: '+z_i);
-				throw err;
-			}
+			return chunkFor(x,z).getLighting(x-cx, y, z-cz);
 		}
 		function setLightingAt(x,y,z, light) {
 			var cx_i = x >> me.chunk_xz_shift,
